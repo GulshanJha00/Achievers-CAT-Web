@@ -1,25 +1,26 @@
 import Link from "next/link";
+import AdminGuard from "@/components/AdminGuard";
 import { Users, FileStack, HelpCircle, FolderOpen, ClipboardList } from "lucide-react";
 
 const stats = [
-  { label: "Students", value: "1,284", icon: Users },
-  { label: "Mocks", value: "38", icon: FileStack },
-  { label: "Questions", value: "421", icon: HelpCircle },
-  { label: "Materials", value: "76", icon: FolderOpen },
-  { label: "Attempts", value: "8,492", icon: ClipboardList },
+  { label: "Students", value: "—", icon: Users },
+  { label: "Mocks", value: "—", icon: FileStack },
+  { label: "Questions", value: "—", icon: HelpCircle },
+  { label: "Materials", value: "—", icon: FolderOpen },
+  { label: "Attempts", value: "—", icon: ClipboardList },
 ];
 
 const sections = [
-  { title: "Daily Practice", desc: "Question of the Day, RC of the Day, DILR Set of the Day", href: "/admin/daily" },
-  { title: "Sectional Mocks", desc: "VARC, DILR, QA sectionals — add, edit, publish", href: "/admin/mocks?type=sectional" },
-  { title: "Full Mocks", desc: "Full CAT-pattern mocks — add, edit, publish", href: "/admin/mocks?type=full" },
-  { title: "Materials", desc: "Upload notes and PDFs by section", href: "/admin/materials" },
-  { title: "Questions", desc: "Manual editor or bulk CSV/Excel import", href: "/admin/questions" },
-  { title: "Students", desc: "View student accounts and attempt history", href: "/admin/students" },
+  { title: "Daily Practice", desc: "Create and edit Question of the Day with text/image questions, options and solutions.", href: "/admin/daily" },
+  { title: "Sectional Mocks", desc: "Upload, edit, publish or delete VARC, DILR and QA HTML mocks.", href: "/admin/mocks?type=sectional" },
+  { title: "Full Mocks", desc: "Upload, edit, publish or delete your full CAT HTML mocks.", href: "/admin/mocks?type=full" },
+  { title: "Materials", desc: "Materials management will be connected next.", href: "/materials" },
+  { title: "Students", desc: "Student accounts and performance are stored in Firebase.", href: "/performance" },
 ];
 
 export default function AdminDashboard() {
   return (
+    <AdminGuard>
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
       <h1 className="font-display text-[26px] font-bold text-foreground">
         Achievers CAT — Admin
@@ -59,5 +60,6 @@ export default function AdminDashboard() {
         ))}
       </div>
     </div>
+    </AdminGuard>
   );
 }

@@ -69,7 +69,7 @@ Visit `http://localhost:3000`.
 ```text
 src/app/               Pages (Next.js App Router)
 src/components/        Header, Footer, MockCard, SectionalTabs, Logo
-src/lib/firebase/       Firebase app, Auth and Firestore client helpers
+src/lib/firebase/       Firebase app, Auth, profile and media helpers
 firebase/firestore.rules
                          Firestore security rules
 firebase/storage.rules  Firebase Storage security rules
@@ -84,5 +84,4 @@ browser before submission. Use a trusted server environment (Firebase
 Admin SDK in a Vercel Route Handler/Function or Cloud Function) to grade
 answers and write the result.
 
-For materials, upload files to Firebase Storage and keep metadata in the
-`materials` Firestore collection.
+For materials, the current scaffold still uses placeholder cards. A file-hosting provider or Firebase Storage can be added later if you want true admin PDF uploads without storing binary files in Firestore.

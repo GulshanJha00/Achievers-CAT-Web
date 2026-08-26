@@ -28,6 +28,18 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+
+    match /question_assets/{assetId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /mock_file_chunks/{chunkId} {
+      allow read: if signedIn() &&
+        get(/databases/$(database)/documents/mocks/$(resource.data.mockId)).data.status == 'published';
+      allow create, update, delete: if isAdmin();
+    }
+
     match /mock_sections/{id} {
       allow read: if signedIn() && (isAdmin() ||
         get(/databases/$(database)/documents/mocks/$(resource.data.mockId)).data.status == 'published');

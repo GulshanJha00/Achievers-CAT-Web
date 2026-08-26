@@ -1,0 +1,27 @@
+# ACHIEVERS CAT — latest changes
+
+- Google-authenticated header now shows the student's Google avatar/name.
+- Account dropdown: My Performance, Profile, Logout; Admin Dashboard for admins.
+- Added `/profile`.
+- Footer now includes: "Made with love and faith by Praneeth and Pavan".
+- Added admin Question of the Day editor at `/admin/daily`.
+  - Text/image question
+  - Text/image for each of A/B/C/D independently
+  - Text/image solution
+  - Text/image optional explanation
+  - Correct option, section, difficulty, topic, date, publish status
+  - Images are compressed and stored as Firestore question assets.
+- Daily Question page now reads the published question from Firestore.
+- Added admin mock manager at `/admin/mocks`.
+  - Full or Sectional
+  - VARC/DILR/QA for sectionals
+  - HTML upload
+  - Edit name/metadata/status
+  - Replace HTML file
+  - Delete mock
+  - HTML is stored in Firestore chunks (no Firebase Storage required).
+- Full Mocks and Sectional Mocks now read published mocks from Firestore.
+- Clicking a mock name or Open Mock opens the uploaded HTML in a new browser tab.
+- Added `/mock-view/[mockId]` to reconstruct the uploaded HTML in that new tab.
+- Added Firestore rules for question image assets and mock HTML chunks.
+- TypeScript check passes with `npx tsc --noEmit`.
