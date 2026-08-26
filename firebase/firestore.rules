@@ -1,0 +1,93 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return signedIn() &&
+        get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /profiles/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid) && !request.resource.data.keys().hasAny(['role']);
+      allow update: if isAdmin() ||
+        (isOwner(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+      allow delete: if isAdmin();
+    }
+
+    match /mocks/{mockId} {
+      allow read: if signedIn() && (resource.data.status == 'published' || isAdmin());
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /mock_sections/{id} {
+      allow read: if signedIn() && (isAdmin() ||
+        get(/databases/$(database)/documents/mocks/$(resource.data.mockId)).data.status == 'published');
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /questions/{questionId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /question_options/{optionId} {
+      // Correct answers should NOT be queried by the client during a live mock.
+      // Keep these admin-only and use a trusted server/admin function for scoring.
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    match /daily_questions/{id} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /daily_rcs/{id} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /attempts/{attemptId} {
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /attempt_answers/{answerId} {
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin()) &&
+        (isAdmin() || request.resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /results/{resultId} {
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      // Results should be written by a trusted server/admin function only.
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /material_categories/{id} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /materials/{id} {
+      allow read: if signedIn() && (resource.data.published == true || isAdmin());
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /admin_logs/{id} {
+      allow read, create, update, delete: if isAdmin();
+    }
+  }
+}
