@@ -57,6 +57,36 @@ service cloud.firestore {
       allow read, create, update, delete: if isAdmin();
     }
 
+    match /daily_packages/{date} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /daily_section_stats/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.count == 1
+        && request.resource.data.date is string
+        && request.resource.data.section in ['quant', 'varc', 'dilr']
+        && getAfter(/databases/$(database)/documents/daily_attempts/$(request.resource.data.date + '_' + request.resource.data.section + '_' + request.auth.uid)).data.userId == request.auth.uid;
+      allow update: if signedIn()
+        && request.resource.data.count == resource.data.count + 1
+        && request.resource.data.date == resource.data.date
+        && request.resource.data.section == resource.data.section
+        && !exists(/databases/$(database)/documents/daily_attempts/$(resource.data.date + '_' + resource.data.section + '_' + request.auth.uid))
+        && getAfter(/databases/$(database)/documents/daily_attempts/$(resource.data.date + '_' + resource.data.section + '_' + request.auth.uid)).data.userId == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    match /daily_attempts/{id} {
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.date is string
+        && request.resource.data.section in ['quant', 'varc', 'dilr']
+        && !exists(/databases/$(database)/documents/daily_attempts/$(id));
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
     match /daily_questions/{id} {
       allow read: if signedIn();
       allow create, update, delete: if isAdmin();
