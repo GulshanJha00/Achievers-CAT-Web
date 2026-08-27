@@ -1,0 +1,22 @@
+[debug] [2026-08-27T13:13:40.068Z] ----------------------------------------------------------------------
+[debug] [2026-08-27T13:13:40.092Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Administrator\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules --project achievers-cat
+[debug] [2026-08-27T13:13:40.093Z] CLI Version:   15.28.1
+[debug] [2026-08-27T13:13:40.093Z] Platform:      win32
+[debug] [2026-08-27T13:13:40.094Z] Node Version:  v24.11.0
+[debug] [2026-08-27T13:13:40.094Z] Detected Agent: unknown
+[debug] [2026-08-27T13:13:40.095Z] Time:          Thu Aug 27 2026 18:43:40 GMT+0530 (India Standard Time)
+[debug] [2026-08-27T13:13:40.095Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-08-27T13:14:45.709Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-08-27T13:14:45.717Z] > authorizing via signed-in user (yelletipraneeth16@gmail.com)
+[debug] [2026-08-27T13:14:45.718Z] [iam] checking project achievers-cat for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2026-08-27T13:14:45.834Z] Checked if tokens are valid: false, expires at: 1787836084320
+[debug] [2026-08-27T13:14:45.834Z] Checked if tokens are valid: false, expires at: 1787836084320
+[debug] [2026-08-27T13:14:45.835Z] > refreshing access token with scopes: []
+[debug] [2026-08-27T13:14:45.857Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-08-27T13:14:45.857Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-08-27T13:14:46.327Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-08-27T13:14:46.328Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-08-27T13:14:46.373Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/achievers-cat:testIamPermissions [none]
+[debug] [2026-08-27T13:14:46.373Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/achievers-cat:testIamPermissions  x-goog-user-project=achievers-cat
+[debug] [2026-08-27T13:14:46.374Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/achievers-cat:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
