@@ -33,7 +33,7 @@ const features = [
     href: "/daily",
     icon: Target,
     title: "Daily Practice",
-    desc: "Question of the Day, RC of the Day, and daily targets to build a streak.",
+    desc: "Quantitative Aptitude, RC / VA, and DILR daily practice with live scores.",
   },
   {
     href: "/sectional",

@@ -280,9 +280,10 @@ service cloud.firestore {
 
     match /daily_leaderboards/{leaderboardId}/entries/{uid} {
 
-      // Anyone signed in can view live rankings.
+      // Live rankings are intentionally public so visitors can
+      // see today's leaderboard without signing in.
       allow read:
-        if signedIn();
+        if true;
 
 
       // Student can create ONLY their own entry.

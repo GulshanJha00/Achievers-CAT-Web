@@ -460,7 +460,6 @@ export default function DailyQuestionPage() {
             attemptRef,
             {
               userId: user.uid,
-              email: user.email || "",
               displayName:
                 user.displayName || "",
 
@@ -509,7 +508,6 @@ export default function DailyQuestionPage() {
             leaderboardEntryRef,
             {
               userId: user.uid,
-              email: user.email || "",
               displayName:
                 user.displayName || "",
 
