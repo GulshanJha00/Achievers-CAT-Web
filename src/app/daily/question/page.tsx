@@ -62,34 +62,12 @@ const todayIST = () =>
     timeZone: "Asia/Kolkata",
   }).format(new Date());
 
-const sectionLabel = (section: Section) => {
-  if (section === "quant") return "Quantitative Aptitude";
-  if (section === "varc") return "VARC";
-  return "DILR";
-};
-
-/*
- * RC = maximum 4 questions
- * VA = maximum 5 questions
- *
- * This means even if an old RC package accidentally contains 5 questions,
- * students will only see the first 4.
- */
-function getSectionQuestions(
-  data: Package,
-  section: Section
-): MCQ[] {
-  if (section === "quant") {
-    return data.quant.slice(0, 5);
-  }
-
-  if (section === "varc") {
-    const limit = data.varc.type === "RC" ? 4 : 5;
-    return data.varc.questions.slice(0, limit);
-  }
-
-  return data.dilr.questions;
-}
+const sectionLabel = (s: Section) =>
+  s === "quant"
+    ? "Quantitative Aptitude"
+    : s === "varc"
+      ? "VARC"
+      : "DILR";
 
 function Content({
   media,
@@ -101,7 +79,12 @@ function Content({
   if (!media?.value) return null;
 
   if (media.type === "image") {
-    return <AssetImage assetId={media.value} alt={alt} />;
+    return (
+      <AssetImage
+        assetId={media.value}
+        alt={alt}
+      />
+    );
   }
 
   return (
@@ -117,8 +100,15 @@ export default function DailyQuestionPage() {
       ? new URLSearchParams(window.location.search)
       : null;
 
-  const section =
+  const requestedSection =
     (params?.get("section") || "quant") as Section;
+
+  const section: Section =
+    requestedSection === "quant" ||
+    requestedSection === "varc" ||
+    requestedSection === "dilr"
+      ? requestedSection
+      : "quant";
 
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -126,9 +116,9 @@ export default function DailyQuestionPage() {
   const [data, setData] = useState<Package | null>(null);
   const [attempt, setAttempt] = useState<any>(null);
 
-  const [answers, setAnswers] = useState<Record<number, string>>(
-    {}
-  );
+  const [answers, setAnswers] = useState<
+    Record<number, string>
+  >({});
 
   const [seconds, setSeconds] = useState(15 * 60);
 
@@ -138,23 +128,32 @@ export default function DailyQuestionPage() {
 
   const [statsCount, setStatsCount] = useState(0);
 
-  const date = useMemo(todayIST, []);
+  const date = useMemo(() => todayIST(), []);
 
   /*
+   * --------------------------------------------------
    * AUTH
+   * --------------------------------------------------
    */
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setAuthLoading(false);
-    });
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (currentUser) => {
+        setUser(currentUser);
+        setAuthLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, []);
 
   /*
-   * LOAD DAILY PACKAGE + EXISTING ATTEMPT + LIVE COUNT
+   * --------------------------------------------------
+   * LOAD DAILY PACKAGE / ATTEMPT / STATS
+   * --------------------------------------------------
    */
+
   useEffect(() => {
     if (!user) return;
 
@@ -167,43 +166,45 @@ export default function DailyQuestionPage() {
         );
 
         if (
+          !cancelled &&
           packageSnap.exists() &&
           packageSnap.data().published !== false
         ) {
-          if (!cancelled) {
-            setData(packageSnap.data() as Package);
-          }
+          setData(packageSnap.data() as Package);
         }
 
-        /*
-         * Check whether this student already completed the section.
-         */
-        const attemptId = `${date}_${section}_${user.uid}`;
+        const attemptId =
+          `${date}_${section}_${user.uid}`;
 
         const attemptSnap = await getDoc(
           doc(db, "daily_attempts", attemptId)
         );
 
-        if (attemptSnap.exists() && !cancelled) {
+        if (!cancelled && attemptSnap.exists()) {
           const savedAttempt = attemptSnap.data();
 
           setAttempt(savedAttempt);
 
           /*
-           * Restore the student's answers so that the selected options
-           * are visible when they return to their result.
+           * Restore previously selected answers so that
+           * View Result shows what the student selected.
            */
           if (savedAttempt.answers) {
-            setAnswers(savedAttempt.answers);
+            const restoredAnswers: Record<number, string> =
+              {};
+
+            Object.entries(savedAttempt.answers).forEach(
+              ([key, value]) => {
+                restoredAnswers[Number(key)] = String(value);
+              }
+            );
+
+            setAnswers(restoredAnswers);
           }
 
           setSubmitted(true);
-          setStarted(false);
         }
 
-        /*
-         * Load current number of students who attempted this section.
-         */
         const statSnap = await getDoc(
           doc(
             db,
@@ -212,13 +213,16 @@ export default function DailyQuestionPage() {
           )
         );
 
-        if (statSnap.exists() && !cancelled) {
+        if (!cancelled && statSnap.exists()) {
           setStatsCount(
             Number(statSnap.data().count || 0)
           );
         }
       } catch (error) {
-        console.error(error);
+        console.error(
+          "Could not load daily practice:",
+          error
+        );
       }
     })();
 
@@ -228,33 +232,59 @@ export default function DailyQuestionPage() {
   }, [user, date, section]);
 
   /*
+   * --------------------------------------------------
    * QUESTIONS
+   *
+   * RC -> maximum 4
+   * VA -> maximum 5
+   *
+   * This also protects the student page if an admin
+   * accidentally uploads more than the allowed number.
+   * --------------------------------------------------
    */
-  const questions = data
-    ? getSectionQuestions(data, section)
-    : [];
+
+  const questions = useMemo(() => {
+    if (!data) return [];
+
+    if (section === "quant") {
+      return data.quant || [];
+    }
+
+    if (section === "varc") {
+      if (data.varc.type === "RC") {
+        return (data.varc.questions || []).slice(0, 4);
+      }
+
+      return (data.varc.questions || []).slice(0, 5);
+    }
+
+    return data.dilr.questions || [];
+  }, [data, section]);
+
+  const title = useMemo(() => {
+    if (!data) {
+      return sectionLabel(section);
+    }
+
+    if (section === "quant") {
+      return "Quantitative Aptitude";
+    }
+
+    if (section === "varc") {
+      return data.varc.type === "VA"
+        ? "VA of the Day"
+        : "RC of the Day";
+    }
+
+    return "DILR Set of the Day";
+  }, [data, section]);
 
   /*
-   * TITLE
-   */
-  const title = !data
-    ? sectionLabel(section)
-    : section === "quant"
-    ? "Quantitative Aptitude"
-    : section === "varc"
-    ? data.varc.type === "VA"
-      ? "VA of the Day"
-      : "RC of the Day"
-    : "DILR Set of the Day";
-
-  /*
-   * MAXIMUM MARKS
-   */
-  const maximumMarks = questions.length * 3;
-
-  /*
+   * --------------------------------------------------
    * TIMER
+   * --------------------------------------------------
    */
+
   useEffect(() => {
     if (!started || submitted) return;
 
@@ -269,37 +299,42 @@ export default function DailyQuestionPage() {
       );
     }, 1000);
 
-    return () => {
+    return () =>
       window.clearInterval(intervalId);
-    };
 
-    // submitAttempt intentionally omitted from dependencies.
+    // submitAttempt is intentionally excluded because
+    // the timer must not restart whenever the function
+    // reference changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [started, submitted, seconds]);
 
   /*
+   * --------------------------------------------------
    * SUBMIT
    *
-   * Scoring:
    * Correct = +3
-   * Wrong = -1
-   * Unanswered = 0
+   * Wrong   = -1
+   * Blank   = 0
+   *
+   * Leaderboard entry is created in the SAME transaction
+   * as the daily attempt.
+   * --------------------------------------------------
    */
+
   async function submitAttempt(auto = false) {
     if (
       !user ||
       !data ||
       submitted ||
-      saving
+      saving ||
+      questions.length === 0
     ) {
       return;
     }
 
     setSaving(true);
 
-    const total = questions.length;
-
-    const answeredCount = Object.keys(answers).length;
+    const answeredIndexes = Object.keys(answers);
 
     const correct = questions.reduce(
       (sum, question, index) => {
@@ -313,13 +348,23 @@ export default function DailyQuestionPage() {
       0
     );
 
+    const answeredCount = answeredIndexes.length;
+
     const wrong = Math.max(
       0,
       answeredCount - correct
     );
 
-    const score =
-      correct * 3 - wrong;
+    const total = questions.length;
+
+    /*
+     * CAT-style marking:
+     *
+     * Correct = +3
+     * Wrong   = -1
+     * Unanswered = 0
+     */
+    const score = correct * 3 - wrong;
 
     const attemptId =
       `${date}_${section}_${user.uid}`;
@@ -327,8 +372,30 @@ export default function DailyQuestionPage() {
     const statId =
       `${date}_${section}`;
 
+    /*
+     * IMPORTANT:
+     *
+     * This is the corrected leaderboard structure:
+     *
+     * daily_leaderboards
+     *   └── 2026-08-27_quant
+     *       └── entries
+     *           └── USER_UID
+     *
+     * NOT:
+     *
+     * daily_leaderboards/2026-08-27/quant/entries
+     */
+    const leaderboardEntryRef = doc(
+      db,
+      "daily_leaderboards",
+      `${date}_${section}`,
+      "entries",
+      user.uid
+    );
+
     try {
-      await runTransaction(db, async (tx) => {
+      await runTransaction(db, async (transaction) => {
         const attemptRef = doc(
           db,
           "daily_attempts",
@@ -342,32 +409,22 @@ export default function DailyQuestionPage() {
         );
 
         /*
-         * NEW:
-         * Individual leaderboard entry.
+         * Read everything before writing anything.
          */
-        const leaderboardEntryRef = doc(
-          db,
-          "daily_leaderboards",
-          date,
-          section,
-          "entries",
-          user.uid
-        );
 
-        const attemptSnap = await tx.get(
-          attemptRef
-        );
+        const attemptSnap =
+          await transaction.get(attemptRef);
+
+        const statSnap =
+          await transaction.get(statRef);
 
         /*
-         * Prevent duplicate attempts.
+         * If the attempt already exists, do not count it
+         * again.
          */
         if (attemptSnap.exists()) {
           return;
         }
-
-        const statSnap = await tx.get(
-          statRef
-        );
 
         const currentCount = statSnap.exists()
           ? Number(
@@ -376,16 +433,14 @@ export default function DailyQuestionPage() {
           : 0;
 
         /*
-         * Save student's actual attempt.
+         * DAILY ATTEMPT
          */
-        tx.set(attemptRef, {
+
+        transaction.set(attemptRef, {
           userId: user.uid,
           email: user.email || "",
           displayName:
-            user.displayName ||
-            user.email?.split("@")[0] ||
-            "Student",
-
+            user.displayName || "",
           date,
           section,
 
@@ -406,9 +461,10 @@ export default function DailyQuestionPage() {
         });
 
         /*
-         * Update live section count.
+         * DAILY SECTION COUNTER
          */
-        tx.set(
+
+        transaction.set(
           statRef,
           {
             date,
@@ -421,20 +477,16 @@ export default function DailyQuestionPage() {
         );
 
         /*
-         * Save leaderboard entry.
+         * LEADERBOARD
          */
-        tx.set(
+
+        transaction.set(
           leaderboardEntryRef,
           {
             userId: user.uid,
-
+            email: user.email || "",
             displayName:
-              user.displayName ||
-              user.email?.split("@")[0] ||
-              "Student",
-
-            email:
-              user.email || "",
+              user.displayName || "",
 
             date,
             section,
@@ -444,7 +496,7 @@ export default function DailyQuestionPage() {
             wrong,
             total,
 
-            submittedAt:
+            updatedAt:
               serverTimestamp(),
           }
         );
@@ -453,28 +505,34 @@ export default function DailyQuestionPage() {
       /*
        * Reload saved attempt.
        */
-      const savedAttempt = await getDoc(
-        doc(
-          db,
-          "daily_attempts",
-          attemptId
-        )
-      );
+
+      const savedAttempt =
+        await getDoc(
+          doc(
+            db,
+            "daily_attempts",
+            attemptId
+          )
+        );
 
       if (savedAttempt.exists()) {
-        setAttempt(savedAttempt.data());
+        setAttempt(
+          savedAttempt.data()
+        );
       }
 
       /*
        * Reload live count.
        */
-      const statSnap = await getDoc(
-        doc(
-          db,
-          "daily_section_stats",
-          statId
-        )
-      );
+
+      const statSnap =
+        await getDoc(
+          doc(
+            db,
+            "daily_section_stats",
+            statId
+          )
+        );
 
       if (statSnap.exists()) {
         setStatsCount(
@@ -488,7 +546,7 @@ export default function DailyQuestionPage() {
       setStarted(false);
     } catch (error) {
       console.error(
-        "Error saving daily attempt:",
+        "Could not save daily attempt:",
         error
       );
 
@@ -503,8 +561,11 @@ export default function DailyQuestionPage() {
   }
 
   /*
-   * LOADING
+   * --------------------------------------------------
+   * LOADING / AUTH
+   * --------------------------------------------------
    */
+
   if (authLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -513,9 +574,6 @@ export default function DailyQuestionPage() {
     );
   }
 
-  /*
-   * NOT LOGGED IN
-   */
   if (!user) {
     return (
       <div className="mx-auto max-w-xl px-4 py-20 text-center">
@@ -533,9 +591,6 @@ export default function DailyQuestionPage() {
     );
   }
 
-  /*
-   * DATA NOT READY
-   */
   if (!data) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
@@ -546,71 +601,46 @@ export default function DailyQuestionPage() {
     );
   }
 
+  /*
+   * --------------------------------------------------
+   * DISPLAY VALUES
+   * --------------------------------------------------
+   */
+
   const timeText =
-    `${String(
-      Math.floor(seconds / 60)
-    ).padStart(2, "0")}:${String(
-      seconds % 60
-    ).padStart(2, "0")}`;
+    `${String(Math.floor(seconds / 60)).padStart(
+      2,
+      "0"
+    )}:${String(seconds % 60).padStart(2, "0")}`;
 
   const answered =
     Object.keys(answers).length;
 
-  /*
-   * Current score while attempting.
-   */
-  const currentCorrect =
-    questions.reduce(
-      (sum, question, index) =>
-        sum +
-        (answers[index] ===
-        question.correctOption
-          ? 1
-          : 0),
-      0
-    );
-
-  const currentWrong = Math.max(
-    0,
-    answered - currentCorrect
-  );
-
-  const currentScore =
-    currentCorrect * 3 -
-    currentWrong;
-
-  /*
-   * Saved result.
-   */
-  const displayScore =
+  const finalScore =
     attempt?.score ??
-    currentScore;
+    0;
 
-  const displayCorrect =
+  const finalCorrect =
     attempt?.correct ??
-    currentCorrect;
+    0;
 
-  const displayWrong =
+  const finalWrong =
     attempt?.wrong ??
-    currentWrong;
+    0;
 
   /*
-   * IMPORTANT:
-   * Passage / DILR set is shown ONLY after Start
-   * or after the student has already submitted.
+   * --------------------------------------------------
+   * PAGE
+   * --------------------------------------------------
    */
-  const showTestContent =
-    started || submitted;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-
-      {/* ------------------------------------------------ */}
-      {/* HEADER */}
-      {/* ------------------------------------------------ */}
+      {/* --------------------------------------------------
+          HEADER
+      -------------------------------------------------- */}
 
       <div className="flex flex-wrap items-start justify-between gap-4">
-
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-dark">
             Daily Practice ·{" "}
@@ -630,20 +660,41 @@ export default function DailyQuestionPage() {
             {title}
           </h1>
 
-          <p className="mt-1 text-sm text-muted">
-            {questions.length} questions · one attempt per day
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+            <span>
+              {questions.length} questions
+            </span>
+
+            <span>·</span>
+
+            <span>
+              one attempt per day
+            </span>
+
+            <span>·</span>
+
+            <span className="font-semibold text-brand-darker">
+              +3 correct
+            </span>
+
+            <span>·</span>
+
+            <span className="font-semibold text-danger">
+              −1 wrong
+            </span>
+          </div>
         </div>
 
-        {/* RIGHT SIDE */}
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
+          {/* ATTEMPT COUNT */}
 
           <div className="hidden items-center gap-1.5 text-xs font-semibold text-muted sm:flex">
             <Users size={14} />
             {statsCount} attempted
           </div>
 
-          {/* RESULT CARD */}
+          {/* SCORE AFTER SUBMIT */}
+
           {submitted ? (
             <div className="rounded-xl border border-brand/30 bg-brand-tint px-4 py-2.5 text-center shadow-sm">
               <div className="flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-brand-darker">
@@ -652,16 +703,11 @@ export default function DailyQuestionPage() {
               </div>
 
               <div className="mt-0.5 font-mono text-xl font-extrabold tabular-nums text-brand-dark">
-                {displayScore}/{maximumMarks}
-              </div>
-
-              <div className="mt-0.5 text-[10px] font-semibold text-muted">
-                {displayCorrect} correct ·{" "}
-                {displayWrong} wrong
+                {finalScore}/
+                {questions.length * 3}
               </div>
             </div>
           ) : (
-            /* TIMER */
             <div className="rounded-xl border border-border bg-white px-4 py-2.5 text-center shadow-sm">
               <div className="flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted">
                 <Clock3 size={12} />
@@ -676,12 +722,14 @@ export default function DailyQuestionPage() {
         </div>
       </div>
 
-      {/* ------------------------------------------------ */}
-      {/* RC PASSAGE */}
-      {/* ONLY AFTER START */}
-      {/* ------------------------------------------------ */}
+      {/* --------------------------------------------------
+          RC PASSAGE
+          
+          IMPORTANT:
+          It is ONLY rendered after Start.
+      -------------------------------------------------- */}
 
-      {showTestContent &&
+      {started &&
         section === "varc" &&
         data.varc.type === "RC" && (
           <div className="mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6">
@@ -699,12 +747,14 @@ export default function DailyQuestionPage() {
           </div>
         )}
 
-      {/* ------------------------------------------------ */}
-      {/* DILR SET */}
-      {/* ONLY AFTER START */}
-      {/* ------------------------------------------------ */}
+      {/* --------------------------------------------------
+          DILR SET
+          
+          Hidden until test starts as well, so students
+          don't see the actual set before beginning.
+      -------------------------------------------------- */}
 
-      {showTestContent &&
+      {started &&
         section === "dilr" && (
           <div className="mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6">
             <h2 className="font-display text-lg font-bold">
@@ -721,13 +771,12 @@ export default function DailyQuestionPage() {
           </div>
         )}
 
-      {/* ------------------------------------------------ */}
-      {/* READY CARD */}
-      {/* ------------------------------------------------ */}
+      {/* --------------------------------------------------
+          READY SCREEN
+      -------------------------------------------------- */}
 
       {!started && !submitted && (
         <div className="mt-6 rounded-2xl border border-border bg-white p-6 text-center">
-
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-tint text-brand-darker">
             <Clock3 size={22} />
           </div>
@@ -741,14 +790,16 @@ export default function DailyQuestionPage() {
             <strong className="text-brand-darker">
               15 minutes
             </strong>{" "}
-            for this section. You can leave the other sections for another time.
+            for this section. You can leave the other
+            sections for another time.
+          </p>
+
+          <p className="mt-3 text-xs font-semibold text-muted">
+            Marking: +3 correct · −1 wrong · 0 unanswered
           </p>
 
           <button
-            onClick={() => {
-              setStarted(true);
-              setSeconds(15 * 60);
-            }}
+            onClick={() => setStarted(true)}
             className="mt-5 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white hover:bg-brand-dark"
           >
             Start {sectionLabel(section)} Test
@@ -756,190 +807,212 @@ export default function DailyQuestionPage() {
         </div>
       )}
 
-      {/* ------------------------------------------------ */}
-      {/* TIMER MESSAGE */}
-      {/* ------------------------------------------------ */}
+      {/* --------------------------------------------------
+          TIMER MESSAGE
+      -------------------------------------------------- */}
 
       {started && !submitted && (
         <div className="mt-5 rounded-xl border border-brand/20 bg-brand-tint px-4 py-3 text-sm font-semibold text-brand-darker">
-          Timer is running. When it reaches 00:00,
-          your answers will be submitted automatically.
+          Timer is running. When it reaches 00:00, your
+          answers will be submitted automatically.
         </div>
       )}
 
-      {/* ------------------------------------------------ */}
-      {/* QUESTIONS */}
-      {/* ------------------------------------------------ */}
+      {/* --------------------------------------------------
+          QUESTIONS
+      -------------------------------------------------- */}
 
-      {showTestContent && (
-        <div className="mt-5 space-y-5">
+      <div className="mt-5 space-y-5">
+        {questions.map((q, i) => {
+          const selected = answers[i];
 
-          {questions.map((q, i) => {
-            const selected = answers[i];
+          const isCorrect =
+            submitted &&
+            selected === q.correctOption;
 
-            const correct =
-              submitted &&
-              selected === q.correctOption;
+          const isWrong =
+            submitted &&
+            !!selected &&
+            selected !== q.correctOption;
 
-            return (
-              <div
-                key={i}
-                className="rounded-2xl border border-border bg-white p-5 sm:p-6"
-              >
-
+          return (
+            <div
+              key={i}
+              className="rounded-2xl border border-border bg-white p-5 sm:p-6"
+            >
+              <div className="flex items-center justify-between gap-4">
                 <div className="text-xs font-bold uppercase tracking-wide text-muted">
                   Question {i + 1}
                 </div>
 
-                {q.title && (
-                  <h3 className="mt-1 font-display text-lg font-bold">
-                    {q.title}
-                  </h3>
-                )}
+                {/* MARKING */}
 
-                <div className="mt-4">
-                  <Content
-                    media={q.question}
-                    alt={`Question ${i + 1}`}
-                  />
-                </div>
+                {!submitted ? (
+                  <div className="flex items-center gap-2 text-[11px] font-bold">
+                    <span className="rounded-full bg-brand-tint px-2 py-1 text-brand-darker">
+                      +3
+                    </span>
 
-                {/* OPTIONS */}
-
-                <div className="mt-6 grid gap-2.5">
-
-                  {q.options.map(
-                    (option) => {
-
-                      const isCorrect =
-                        submitted &&
-                        option.label ===
-                          q.correctOption;
-
-                      const isWrong =
-                        submitted &&
-                        selected ===
-                          option.label &&
-                        option.label !==
-                          q.correctOption;
-
-                      return (
-                        <button
-                          key={option.label}
-                          disabled={
-                            !started ||
-                            submitted
-                          }
-                          onClick={() =>
-                            setAnswers(
-                              (previous) => ({
-                                ...previous,
-                                [i]:
-                                  option.label,
-                              })
-                            )
-                          }
-                          className={`rounded-xl border px-4 py-3 text-left transition ${
-                            isCorrect
-                              ? "border-brand bg-brand-tint"
-                              : isWrong
-                              ? "border-danger/40 bg-red-50"
-                              : selected ===
-                                option.label
-                              ? "border-brand bg-brand-tint"
-                              : "border-border hover:border-brand/50"
-                          }`}
-                        >
-                          <div className="flex gap-3">
-
-                            <span className="mt-0.5 shrink-0 font-semibold">
-                              {option.label}.
-                            </span>
-
-                            <div className="min-w-0 flex-1">
-                              <Content
-                                media={
-                                  option.content
-                                }
-                                alt={`Option ${option.label}`}
-                              />
-                            </div>
-
-                            {isCorrect && (
-                              <CheckCircle2
-                                className="mt-0.5 shrink-0 text-brand"
-                                size={18}
-                              />
-                            )}
-                          </div>
-                        </button>
-                      );
-                    }
-                  )}
-
-                </div>
-
-                {/* SOLUTION */}
-
-                {submitted && (
-                  <div className="mt-6 rounded-2xl bg-surface-muted p-5">
-
-                    <p
-                      className={`text-sm font-bold ${
-                        correct
-                          ? "text-brand-darker"
-                          : "text-danger"
-                      }`}
-                    >
-                      {correct
-                        ? "Correct! +3 marks"
-                        : `Incorrect — correct answer: ${q.correctOption} · -1 mark`}
-                    </p>
-
-                    {q.solution?.value && (
-                      <div className="mt-5">
-                        <p className="mb-2 text-xs font-semibold">
-                          Solution
-                        </p>
-
-                        <Content
-                          media={q.solution}
-                          alt="Solution"
-                        />
-                      </div>
-                    )}
-
-                    {q.explanation?.value && (
-                      <div className="mt-5 border-t border-border pt-4">
-                        <p className="mb-2 text-xs font-semibold">
-                          Explanation
-                        </p>
-
-                        <Content
-                          media={
-                            q.explanation
-                          }
-                          alt="Explanation"
-                        />
-                      </div>
-                    )}
-
+                    <span className="rounded-full bg-red-50 px-2 py-1 text-danger">
+                      −1
+                    </span>
+                  </div>
+                ) : (
+                  <div
+                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                      isCorrect
+                        ? "bg-brand-tint text-brand-darker"
+                        : isWrong
+                          ? "bg-red-50 text-danger"
+                          : "bg-surface-muted text-muted"
+                    }`}
+                  >
+                    {isCorrect
+                      ? "+3"
+                      : isWrong
+                        ? "−1"
+                        : "0"}
                   </div>
                 )}
               </div>
-            );
-          })}
 
-        </div>
-      )}
+              {q.title && (
+                <h3 className="mt-1 font-display text-lg font-bold">
+                  {q.title}
+                </h3>
+              )}
 
-      {/* ------------------------------------------------ */}
-      {/* SUBMIT BAR */}
-      {/* ------------------------------------------------ */}
+              <div className="mt-4">
+                <Content
+                  media={q.question}
+                  alt={`Question ${i + 1}`}
+                />
+              </div>
+
+              {/* OPTIONS */}
+
+              <div className="mt-6 grid gap-2.5">
+                {q.options.map((option) => {
+                  const optionIsCorrect =
+                    submitted &&
+                    option.label ===
+                      q.correctOption;
+
+                  const optionIsWrong =
+                    submitted &&
+                    selected ===
+                      option.label &&
+                    option.label !==
+                      q.correctOption;
+
+                  return (
+                    <button
+                      key={option.label}
+                      disabled={
+                        !started ||
+                        submitted
+                      }
+                      onClick={() =>
+                        setAnswers((previous) => ({
+                          ...previous,
+                          [i]: option.label,
+                        }))
+                      }
+                      className={`rounded-xl border px-4 py-3 text-left transition ${
+                        optionIsCorrect
+                          ? "border-brand bg-brand-tint"
+                          : optionIsWrong
+                            ? "border-danger/40 bg-red-50"
+                            : selected ===
+                                option.label
+                              ? "border-brand bg-brand-tint"
+                              : "border-border hover:border-brand/50"
+                      }`}
+                    >
+                      <div className="flex gap-3">
+                        <span className="mt-0.5 shrink-0 font-semibold">
+                          {option.label}.
+                        </span>
+
+                        <div className="min-w-0 flex-1">
+                          <Content
+                            media={
+                              option.content
+                            }
+                            alt={`Option ${option.label}`}
+                          />
+                        </div>
+
+                        {optionIsCorrect && (
+                          <CheckCircle2
+                            className="mt-0.5 shrink-0 text-brand"
+                            size={18}
+                          />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* SOLUTION AFTER SUBMISSION */}
+
+              {submitted && (
+                <div className="mt-6 rounded-2xl bg-surface-muted p-5">
+                  <p
+                    className={`text-sm font-bold ${
+                      isCorrect
+                        ? "text-brand-darker"
+                        : selected
+                          ? "text-danger"
+                          : "text-muted"
+                    }`}
+                  >
+                    {isCorrect
+                      ? "Correct! +3 marks"
+                      : selected
+                        ? `Incorrect — ${q.correctOption} was the correct answer. −1 mark`
+                        : `Not attempted — correct answer: ${q.correctOption}`}
+                  </p>
+
+                  {q.solution?.value && (
+                    <div className="mt-5">
+                      <p className="mb-2 text-xs font-semibold">
+                        Solution
+                      </p>
+
+                      <Content
+                        media={q.solution}
+                        alt="Solution"
+                      />
+                    </div>
+                  )}
+
+                  {q.explanation?.value && (
+                    <div className="mt-5 border-t border-border pt-4">
+                      <p className="mb-2 text-xs font-semibold">
+                        Explanation
+                      </p>
+
+                      <Content
+                        media={q.explanation}
+                        alt="Explanation"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* --------------------------------------------------
+          SUBMIT BAR
+      -------------------------------------------------- */}
 
       {started && !submitted && (
         <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-4 rounded-2xl border border-border bg-white p-4 shadow-lg">
-
           <span className="text-sm text-muted">
             Answered{" "}
             <strong className="text-foreground">
@@ -961,34 +1034,61 @@ export default function DailyQuestionPage() {
         </div>
       )}
 
-      {/* ------------------------------------------------ */}
-      {/* COMPLETED */}
-      {/* NO SCORE HERE */}
-      {/* ------------------------------------------------ */}
+      {/* --------------------------------------------------
+          RESULT HEADER / SUMMARY
+          
+          Score is deliberately NOT shown underneath all
+          questions. The main score is in the top-right.
+      -------------------------------------------------- */}
 
       {submitted && (
-        <div className="mt-6 rounded-2xl border border-brand/30 bg-brand-tint p-6 text-center">
+        <div className="mt-6 rounded-2xl border border-brand/30 bg-brand-tint p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-brand-darker">
+                Section complete
+              </p>
 
-          <p className="text-xs font-bold uppercase tracking-wide text-brand-darker">
-            Section complete
-          </p>
+              <p className="mt-1 text-sm text-muted">
+                {finalCorrect} correct ·{" "}
+                {finalWrong} wrong ·{" "}
+                {Math.max(
+                  0,
+                  questions.length -
+                    finalCorrect -
+                    finalWrong
+                )}{" "}
+                unanswered
+              </p>
+            </div>
 
-          <h2 className="mt-1 font-display text-xl font-bold">
-            Your result has been saved.
-          </h2>
+            <div className="text-right">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Your Score
+              </p>
 
-          <p className="mt-1 text-sm text-muted">
-            {displayCorrect} correct ·{" "}
-            {displayWrong} wrong ·{" "}
-            {statsCount} students attempted this section today.
-          </p>
+              <p className="font-display text-2xl font-bold text-brand-darker">
+                {finalScore}/
+                {questions.length * 3}
+              </p>
+            </div>
+          </div>
 
-          <Link
-            href="/daily"
-            className="mt-5 inline-flex rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-white"
-          >
-            Back to Daily Practice
-          </Link>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              href="/daily"
+              className="inline-flex rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-white"
+            >
+              Back to Daily Practice
+            </Link>
+
+            <Link
+              href="/"
+              className="inline-flex rounded-full border border-border bg-white px-5 py-2.5 text-sm font-bold text-foreground"
+            >
+              View Live Rankings
+            </Link>
+          </div>
         </div>
       )}
     </div>

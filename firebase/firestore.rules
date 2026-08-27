@@ -3,74 +3,72 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ==================================================
+    // --------------------------------------------------
     // HELPER FUNCTIONS
-    // ==================================================
+    // --------------------------------------------------
 
     function signedIn() {
       return request.auth != null;
     }
 
     function isOwner(uid) {
-      return signedIn() &&
-        request.auth.uid == uid;
+      return signedIn()
+        && request.auth.uid == uid;
     }
 
     function isAdmin() {
-      return signedIn() &&
-        get(
+      return signedIn()
+        && get(
           /databases/$(database)/documents/profiles/$(request.auth.uid)
         ).data.role == 'admin';
     }
 
 
-    // ==================================================
+    // --------------------------------------------------
     // PROFILES
-    // ==================================================
+    // --------------------------------------------------
 
     match /profiles/{uid} {
 
-      allow read: if isOwner(uid) || isAdmin();
+      allow read:
+        if isOwner(uid) || isAdmin();
 
-      allow create: if isOwner(uid)
+      allow create:
+        if isOwner(uid)
         && !request.resource.data.keys().hasAny(['role']);
 
-      allow update: if isAdmin()
+      allow update:
+        if isAdmin()
         || (
           isOwner(uid)
-          &&
-          !request.resource.data
+          && !request.resource.data
             .diff(resource.data)
             .affectedKeys()
             .hasAny(['role'])
         );
 
-      allow delete: if isAdmin();
+      allow delete:
+        if isAdmin();
     }
 
 
-    // ==================================================
+    // --------------------------------------------------
     // MOCKS
-    // ==================================================
+    // --------------------------------------------------
 
     match /mocks/{mockId} {
 
-      allow read: if signedIn()
-        &&
-        (
+      allow read:
+        if signedIn()
+        && (
           resource.data.status == 'published'
-          ||
-          isAdmin()
+          || isAdmin()
         );
 
       allow create, update, delete:
         if isAdmin();
     }
 
-
-    // ==================================================
-    // QUESTION ASSETS
-    // ==================================================
 
     match /question_assets/{assetId} {
 
@@ -82,15 +80,11 @@ service cloud.firestore {
     }
 
 
-    // ==================================================
-    // MOCK FILE CHUNKS
-    // ==================================================
-
     match /mock_file_chunks/{chunkId} {
 
-      allow read: if signedIn()
-        &&
-        get(
+      allow read:
+        if signedIn()
+        && get(
           /databases/$(database)/documents/mocks/$(resource.data.mockId)
         ).data.status == 'published';
 
@@ -99,15 +93,11 @@ service cloud.firestore {
     }
 
 
-    // ==================================================
-    // MOCK SECTIONS
-    // ==================================================
-
     match /mock_sections/{id} {
 
-      allow read: if signedIn()
-        &&
-        (
+      allow read:
+        if signedIn()
+        && (
           isAdmin()
           ||
           get(
@@ -120,9 +110,9 @@ service cloud.firestore {
     }
 
 
-    // ==================================================
+    // --------------------------------------------------
     // QUESTIONS
-    // ==================================================
+    // --------------------------------------------------
 
     match /questions/{questionId} {
 
@@ -134,23 +124,17 @@ service cloud.firestore {
     }
 
 
-    // ==================================================
-    // QUESTION OPTIONS
-    // ==================================================
-
     match /question_options/{optionId} {
 
-      /*
-       * Correct answers remain admin-only.
-       */
+      // Correct answers remain admin-only.
       allow read, create, update, delete:
         if isAdmin();
     }
 
 
-    // ==================================================
-    // DAILY PACKAGES
-    // ==================================================
+    // --------------------------------------------------
+    // DAILY CONTENT
+    // --------------------------------------------------
 
     match /daily_packages/{date} {
 
@@ -162,10 +146,6 @@ service cloud.firestore {
     }
 
 
-    // ==================================================
-    // DAILY QUESTIONS
-    // ==================================================
-
     match /daily_questions/{id} {
 
       allow read:
@@ -175,10 +155,6 @@ service cloud.firestore {
         if isAdmin();
     }
 
-
-    // ==================================================
-    // DAILY RC
-    // ==================================================
 
     match /daily_rcs/{id} {
 
@@ -190,74 +166,36 @@ service cloud.firestore {
     }
 
 
-    // ==================================================
+    // --------------------------------------------------
     // DAILY SECTION STATS
-    // ==================================================
+    // --------------------------------------------------
 
     match /daily_section_stats/{id} {
 
-      /*
-       * Students can read live attempt count.
-       */
       allow read:
         if signedIn();
 
 
-      /*
-       * Student can create the counter
-       * when the first attempt happens.
-       *
-       * The corresponding daily_attempt must
-       * also be created in the same transaction.
-       */
-      allow create: if signedIn()
-        &&
-        request.resource.data.count == 1
-        &&
-        request.resource.data.date is string
-        &&
-        request.resource.data.section
-          in ['quant', 'varc', 'dilr']
-        &&
-        getAfter(
-          /databases/$(database)/documents/daily_attempts/$(request.resource.data.date + '_' + request.resource.data.section + '_' + request.auth.uid)
-        ).data.userId == request.auth.uid
-        &&
-        getAfter(
-          /databases/$(database)/documents/daily_attempts/$(request.resource.data.date + '_' + request.resource.data.section + '_' + request.auth.uid)
-        ).data.date == request.resource.data.date
-        &&
-        getAfter(
-          /databases/$(database)/documents/daily_attempts/$(request.resource.data.date + '_' + request.resource.data.section + '_' + request.auth.uid)
-        ).data.section == request.resource.data.section;
+      // Student can create the counter
+      // when the first person attempts.
+      allow create:
+        if signedIn()
+        && request.resource.data.count == 1
+        && request.resource.data.date is string
+        && request.resource.data.section
+          in ['quant', 'varc', 'dilr'];
 
 
-      /*
-       * Student can increment the counter
-       * by exactly 1.
-       */
-      allow update: if signedIn()
-        &&
-        request.resource.data.count ==
+      // Student can increment the counter
+      // by exactly one.
+      allow update:
+        if signedIn()
+        && request.resource.data.count ==
           resource.data.count + 1
-        &&
-        request.resource.data.date ==
+        && request.resource.data.date ==
           resource.data.date
-        &&
-        request.resource.data.section ==
-          resource.data.section
-        &&
-        getAfter(
-          /databases/$(database)/documents/daily_attempts/$(resource.data.date + '_' + resource.data.section + '_' + request.auth.uid)
-        ).data.userId == request.auth.uid
-        &&
-        getAfter(
-          /databases/$(database)/documents/daily_attempts/$(resource.data.date + '_' + resource.data.section + '_' + request.auth.uid)
-        ).data.date == resource.data.date
-        &&
-        getAfter(
-          /databases/$(database)/documents/daily_attempts/$(resource.data.date + '_' + resource.data.section + '_' + request.auth.uid)
-        ).data.section == resource.data.section;
+        && request.resource.data.section ==
+          resource.data.section;
 
 
       allow delete:
@@ -265,55 +203,41 @@ service cloud.firestore {
     }
 
 
-    // ==================================================
+    // --------------------------------------------------
     // DAILY ATTEMPTS
-    // ==================================================
+    // --------------------------------------------------
 
     match /daily_attempts/{id} {
 
-      /*
-       * Student sees only their own attempt.
-       * Admin sees all attempts.
-       */
-      allow read: if signedIn()
-        &&
-        (
+      // Students can see their own attempt.
+      // Admin can see all attempts.
+      allow read:
+        if signedIn()
+        && (
           resource.data.userId ==
             request.auth.uid
-          ||
-          isAdmin()
+          || isAdmin()
         );
 
 
-      /*
-       * Student creates their own attempt.
-       */
-      allow create: if signedIn()
-        &&
-        request.resource.data.userId ==
+      // Student can create their own attempt.
+      allow create:
+        if signedIn()
+        && request.resource.data.userId ==
           request.auth.uid
-        &&
-        request.resource.data.date is string
-        &&
-        request.resource.data.section
+        && request.resource.data.date is string
+        && request.resource.data.section
           in ['quant', 'varc', 'dilr']
-        &&
-        request.resource.data.score is number
-        &&
-        request.resource.data.correct is number
-        &&
-        request.resource.data.wrong is number
-        &&
-        request.resource.data.total is number;
+        && request.resource.data.score is number
+        && request.resource.data.correct is number
+        && request.resource.data.wrong is number
+        && request.resource.data.total is number;
 
 
-      /*
-       * Student can update only their own attempt.
-       * Admin can update anything.
-       */
-      allow update: if signedIn()
-        &&
-        (
+      // Student can update only their own attempt.
+      allow update:
+        if signedIn()
+        && (
           isAdmin()
           ||
           (
@@ -337,122 +261,118 @@ service cloud.firestore {
     }
 
 
-    // ==================================================
+    // --------------------------------------------------
     // DAILY LEADERBOARDS
-    // ==================================================
+    //
+    // IMPORTANT:
+    //
+    // Correct structure:
+    //
+    // daily_leaderboards
+    //   /2026-08-27_quant
+    //      /entries
+    //         /USER_UID
+    //
+    // This avoids the invalid collection path:
+    //
+    // daily_leaderboards/2026-08-27/quant/entries
+    // --------------------------------------------------
 
-    /*
-     * Structure:
-     *
-     * daily_leaderboards
-     *   └── 2026-08-27
-     *        └── quant
-     *             └── entries
-     *                  └── USER_UID
-     *
-     * Same structure exists for:
-     *
-     * quant
-     * varc
-     * dilr
-     */
+    match /daily_leaderboards/{leaderboardId}/entries/{uid} {
 
-
-    match /daily_leaderboards/{date}/{section}/entries/{uid} {
-
-      /*
-       * Students can read the leaderboard.
-       *
-       * This is what allows the homepage to display
-       * live Top 10 rankings.
-       */
+      // Anyone signed in can view live rankings.
       allow read:
         if signedIn();
 
 
-      /*
-       * A student can create only their own entry.
-       *
-       * IMPORTANT:
-       *
-       * The corresponding daily_attempt must be
-       * created in the SAME Firestore transaction.
-       *
-       * getAfter() therefore sees the newly-created
-       * attempt and verifies that the leaderboard
-       * score matches the actual saved score.
-       */
-      allow create: if signedIn()
-        &&
-        uid == request.auth.uid
-        &&
-        section in ['quant', 'varc', 'dilr']
-        &&
-        request.resource.data.userId ==
+      // Student can create ONLY their own entry.
+      //
+      // The leaderboard entry must match the daily attempt
+      // created in the SAME transaction.
+      allow create:
+        if signedIn()
+        && uid == request.auth.uid
+
+        && request.resource.data.userId ==
           request.auth.uid
-        &&
-        request.resource.data.date ==
-          date
-        &&
-        request.resource.data.section ==
-          section
-        &&
-        request.resource.data.score ==
+
+        && request.resource.data.date is string
+
+        && request.resource.data.section
+          in ['quant', 'varc', 'dilr']
+
+        && request.resource.data.score is number
+        && request.resource.data.correct is number
+        && request.resource.data.wrong is number
+        && request.resource.data.total is number
+
+        && leaderboardId ==
+          request.resource.data.date + '_' +
+          request.resource.data.section
+
+        && request.resource.data.date ==
           getAfter(
-            /databases/$(database)/documents/daily_attempts/$(date + '_' + section + '_' + request.auth.uid)
+            /databases/$(database)/documents/daily_attempts/$(request.resource.data.date + '_' + request.resource.data.section + '_' + request.auth.uid)
+          ).data.date
+
+        && request.resource.data.section ==
+          getAfter(
+            /databases/$(database)/documents/daily_attempts/$(request.resource.data.date + '_' + request.resource.data.section + '_' + request.auth.uid)
+          ).data.section
+
+        && request.resource.data.score ==
+          getAfter(
+            /databases/$(database)/documents/daily_attempts/$(request.resource.data.date + '_' + request.resource.data.section + '_' + request.auth.uid)
           ).data.score
-        &&
-        request.resource.data.correct ==
+
+        && request.resource.data.correct ==
           getAfter(
-            /databases/$(database)/documents/daily_attempts/$(date + '_' + section + '_' + request.auth.uid)
+            /databases/$(database)/documents/daily_attempts/$(request.resource.data.date + '_' + request.resource.data.section + '_' + request.auth.uid)
           ).data.correct
-        &&
-        request.resource.data.wrong ==
+
+        && request.resource.data.wrong ==
           getAfter(
-            /databases/$(database)/documents/daily_attempts/$(date + '_' + section + '_' + request.auth.uid)
+            /databases/$(database)/documents/daily_attempts/$(request.resource.data.date + '_' + request.resource.data.section + '_' + request.auth.uid)
           ).data.wrong
-        &&
-        request.resource.data.total ==
+
+        && request.resource.data.total ==
           getAfter(
-            /databases/$(database)/documents/daily_attempts/$(date + '_' + section + '_' + request.auth.uid)
+            /databases/$(database)/documents/daily_attempts/$(request.resource.data.date + '_' + request.resource.data.section + '_' + request.auth.uid)
           ).data.total;
 
 
-      /*
-       * Admin can update leaderboard entries if necessary.
-       */
+      // Students cannot modify an existing leaderboard
+      // entry. Admin can.
       allow update, delete:
         if isAdmin();
     }
 
 
-    // ==================================================
+    // --------------------------------------------------
     // GENERAL ATTEMPTS
-    // ==================================================
+    // --------------------------------------------------
 
     match /attempts/{attemptId} {
 
-      allow read: if signedIn()
-        &&
-        (
+      allow read:
+        if signedIn()
+        && (
           resource.data.userId ==
             request.auth.uid
-          ||
-          isAdmin()
+          || isAdmin()
         );
 
-      allow create: if signedIn()
-        &&
-        request.resource.data.userId ==
+      allow create:
+        if signedIn()
+        && request.resource.data.userId ==
           request.auth.uid;
 
-      allow update: if signedIn()
-        &&
-        (
+      allow update:
+        if signedIn()
+        && (
           resource.data.userId ==
             request.auth.uid
-          ||
-          isAdmin()
+          || isAdmin()
         );
 
       allow delete:
@@ -460,29 +380,28 @@ service cloud.firestore {
     }
 
 
-    // ==================================================
+    // --------------------------------------------------
     // ATTEMPT ANSWERS
-    // ==================================================
+    // --------------------------------------------------
 
     match /attempt_answers/{answerId} {
 
-      allow read: if signedIn()
-        &&
-        (
+      allow read:
+        if signedIn()
+        && (
           resource.data.userId ==
             request.auth.uid
-          ||
-          isAdmin()
+          || isAdmin()
         );
 
-      allow create: if signedIn()
-        &&
-        request.resource.data.userId ==
+      allow create:
+        if signedIn()
+        && request.resource.data.userId ==
           request.auth.uid;
 
-      allow update: if signedIn()
-        &&
-        (
+      allow update:
+        if signedIn()
+        && (
           isAdmin()
           ||
           (
@@ -499,32 +418,29 @@ service cloud.firestore {
     }
 
 
-    // ==================================================
+    // --------------------------------------------------
     // RESULTS
-    // ==================================================
+    // --------------------------------------------------
 
     match /results/{resultId} {
 
-      allow read: if signedIn()
-        &&
-        (
+      allow read:
+        if signedIn()
+        && (
           resource.data.userId ==
             request.auth.uid
-          ||
-          isAdmin()
+          || isAdmin()
         );
 
-      /*
-       * Results remain admin/server controlled.
-       */
+      // Results remain admin/server controlled.
       allow create, update, delete:
         if isAdmin();
     }
 
 
-    // ==================================================
+    // --------------------------------------------------
     // MATERIAL CATEGORIES
-    // ==================================================
+    // --------------------------------------------------
 
     match /material_categories/{id} {
 
@@ -536,18 +452,17 @@ service cloud.firestore {
     }
 
 
-    // ==================================================
+    // --------------------------------------------------
     // MATERIALS
-    // ==================================================
+    // --------------------------------------------------
 
     match /materials/{id} {
 
-      allow read: if signedIn()
-        &&
-        (
+      allow read:
+        if signedIn()
+        && (
           resource.data.published == true
-          ||
-          isAdmin()
+          || isAdmin()
         );
 
       allow create, update, delete:
@@ -555,9 +470,9 @@ service cloud.firestore {
     }
 
 
-    // ==================================================
+    // --------------------------------------------------
     // ADMIN LOGS
-    // ==================================================
+    // --------------------------------------------------
 
     match /admin_logs/{id} {
 
