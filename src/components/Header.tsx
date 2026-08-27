@@ -175,8 +175,8 @@ export default function Header() {
                 key={item.label}
                 className="group relative"
               >
-                <button
-                  type="button"
+                <Link
+                  href={item.href}
                   className="flex items-center gap-1 rounded-full px-3.5 py-2 text-[14px] font-medium text-foreground/80 transition hover:bg-brand-tint hover:text-brand-darker"
                 >
                   {item.label}
@@ -185,7 +185,7 @@ export default function Header() {
                     size={14}
                     className="text-muted transition group-hover:rotate-180"
                   />
-                </button>
+                </Link>
 
                 <div className="invisible absolute left-0 top-full pt-2 opacity-0 transition group-hover:visible group-hover:opacity-100">
                   <div className="min-w-[220px] rounded-xl border border-border bg-white p-1.5 shadow-lg shadow-black/5">

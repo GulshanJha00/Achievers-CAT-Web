@@ -49,10 +49,10 @@ export default function MockCard({ mock }: { mock: MockSummary }) {
           {mock.section && <span>{mock.section}</span>}
         </div>
         {mock.attempted && (
-          <p className="mt-2 text-[12.5px] text-muted">
+          <div className="mt-3 inline-flex items-center rounded-xl border border-brand/20 bg-brand-tint px-3 py-2 text-[13px] font-semibold text-brand-darker">
             Attempted {mock.attempted.attemptedOn} · Score {mock.attempted.score}{typeof mock.attempted.total === "number" ? `/${mock.attempted.total * 3}` : ""}
             {mock.attempted.percentile ? ` · ${mock.attempted.percentile} %ile` : ""}
-          </p>
+          </div>
         )}
       </div>
 

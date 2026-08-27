@@ -53,8 +53,7 @@ service cloud.firestore {
 
     match /materials/{materialId} {
       allow read:
-        if signedIn()
-        && (resource.data.published == true || isAdmin());
+        if resource.data.published == true || isAdmin();
 
       allow create, update, delete:
         if isAdmin();
@@ -68,11 +67,7 @@ service cloud.firestore {
     match /mocks/{mockId} {
 
       allow read:
-        if signedIn()
-        && (
-          resource.data.status == 'published'
-          || isAdmin()
-        );
+        if resource.data.status == 'published' || isAdmin();
 
       allow create, update, delete:
         if isAdmin();

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where } from "firebase/firestore";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { Download, FileText, Loader2 } from "lucide-react";
-import { db } from "@/lib/firebase/client";
+import { auth, db } from "@/lib/firebase/client";
 
 type Material = { id: string; section: string; topic: string; name: string; size: number; url: string };
 const sections = ["VARC", "DILR", "QA"];
@@ -12,6 +14,22 @@ const formatSize = (bytes: number) => bytes < 1_000_000 ? `${Math.max(1, Math.ro
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
+
+  useEffect(() => onAuthStateChanged(auth, setUser), []);
+
+  useEffect(() => {
+    if (user) return;
+    const requireLogin = (event: MouseEvent) => {
+      const link = (event.target as Element | null)?.closest("a[aria-label^='Download']");
+      if (!link) return;
+      event.preventDefault();
+      router.push("/login");
+    };
+    document.addEventListener("click", requireLogin);
+    return () => document.removeEventListener("click", requireLogin);
+  }, [router, user]);
 
   useEffect(() => {
     getDocs(query(collection(db, "materials"), where("published", "==", true)))

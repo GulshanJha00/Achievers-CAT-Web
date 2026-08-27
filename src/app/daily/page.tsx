@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase/client";
 import { ArrowRight, CheckCircle2, Circle, Flame, Loader2, Users } from "lucide-react";
 
@@ -20,7 +20,7 @@ type Attempts = Record<Section, { score: number; correct: number; total: number 
 const todayIST = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
 
 export default function DailyPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [data, setData] = useState<DailyPackage | null>(null);
   const [stats, setStats] = useState<Stats>({ quant: 0, varc: 0, dilr: 0 });
   const [attempts, setAttempts] = useState<Attempts>({ quant: null, varc: null, dilr: null });
@@ -49,6 +49,18 @@ export default function DailyPage() {
       setAttempts(nextAttempts);
     })().catch(console.error);
   }, [user, date]);
+
+  useEffect(() => {
+    document.querySelectorAll("span").forEach((element) => {
+      if (!element.textContent?.startsWith("Completed")) return;
+      const card = element.closest(".rounded-2xl");
+      const scoreRow = element.parentElement?.parentElement;
+      if (!card || !scoreRow) return;
+      card.classList.add("relative");
+      scoreRow.classList.add("sm:absolute", "sm:right-5", "sm:top-5", "sm:border-0", "sm:pt-0", "sm:mt-0");
+      element.classList.add("rounded-xl", "border", "border-brand/20", "bg-brand-tint", "px-3", "py-2", "font-bold", "text-brand-darker");
+    });
+  }, [attempts]);
 
   if (loading) return <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="animate-spin text-brand"/></div>;
   if (!user) return <div className="mx-auto max-w-xl px-4 py-20 text-center"><h1 className="font-display text-2xl font-bold">Sign in to access Daily Practice</h1><Link href="/login" className="mt-6 inline-flex rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white">Continue with Google</Link></div>;
