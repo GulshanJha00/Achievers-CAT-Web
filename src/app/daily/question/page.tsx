@@ -466,10 +466,22 @@ function DailyQuestionContent() {
             user.uid
           );
 
-          const attemptSnap =
-            await transaction.get(
-              attemptRef
-            );
+          /*
+           * IMPORTANT:
+           *
+           * Do NOT transaction.get(attemptRef) here.
+           * A first-time submission does not have a
+           * daily_attempts document yet, and the student's
+           * read permission is intentionally limited to
+           * their own existing attempt. Reading the missing
+           * document inside the transaction can therefore
+           * fail with "Missing or insufficient permissions."
+           *
+           * The page already checks for an existing attempt
+           * while loading. The transaction itself creates the
+           * attempt and safely handles an existing document
+           * through the Firestore update rule.
+           */
 
           const statSnap =
             await transaction.get(
@@ -480,13 +492,6 @@ function DailyQuestionContent() {
             await transaction.get(
               streakRef
             );
-
-          /*
-           * Already submitted.
-           */
-          if (attemptSnap.exists()) {
-            return;
-          }
 
           const currentCount =
             statSnap.exists()
