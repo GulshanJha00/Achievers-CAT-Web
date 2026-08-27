@@ -13,8 +13,9 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { onAuthStateChanged, type User } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
 import Logo from "./Logo";
-import { auth } from "@/lib/firebase/client";
+import { auth, db } from "@/lib/firebase/client";
 import { getProfile } from "@/lib/firebase/profile";
 import { signOutUser } from "@/lib/firebase/auth";
 
@@ -78,6 +79,7 @@ export default function Header() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [streak, setStreak] = useState(0);
 
   const accountRef = useRef<HTMLDivElement>(null);
 
@@ -99,6 +101,32 @@ export default function Header() {
 
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setStreak(0);
+      return;
+    }
+
+    const streakRef = doc(db, "user_streaks", user.uid);
+
+    return onSnapshot(
+      streakRef,
+      (snap) => {
+        if (!snap.exists()) {
+          setStreak(0);
+          return;
+        }
+
+        const currentStreak = Number(snap.data().currentStreak ?? 0);
+        setStreak(Number.isFinite(currentStreak) && currentStreak >= 0 ? currentStreak : 0);
+      },
+      (error) => {
+        console.error("Could not listen to user streak:", error);
+        setStreak(0);
+      }
+    );
+  }, [user]);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
@@ -190,13 +218,13 @@ export default function Header() {
         {/* DESKTOP ACCOUNT AREA */}
         <div className="hidden items-center gap-3 lg:flex">
 
-          {/* STREAK */}
-          <div className="flex items-center gap-1 rounded-full bg-brand-tint px-2.5 py-1 text-[13px] font-semibold text-brand-darker">
-            <Flame
-              size={14}
-              className="text-flame"
-            />
-            0
+          {/* LIVE STREAK */}
+          <div
+            className="flex items-center gap-1 rounded-full bg-brand-tint px-2.5 py-1 text-[13px] font-semibold text-brand-darker"
+            title={user ? "Your current daily practice streak" : "Log in to see your streak"}
+          >
+            <Flame size={14} className="text-flame" />
+            {streak}
           </div>
 
           {!user ? (

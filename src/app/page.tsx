@@ -199,9 +199,15 @@ export default function Home() {
     return onSnapshot(
       streakRef,
       (snap) => {
+        if (!snap.exists()) {
+          setStreak(0);
+          return;
+        }
+
+        const currentStreak = Number(snap.data().currentStreak ?? 0);
         setStreak(
-          snap.exists()
-            ? Number(snap.data().currentStreak || 0)
+          Number.isFinite(currentStreak) && currentStreak >= 0
+            ? currentStreak
             : 0
         );
       },
