@@ -15,6 +15,8 @@ import {
   Clock3,
   Loader2,
   Users,
+  Trophy,
+  XCircle,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -124,7 +126,6 @@ export default function DailyQuestionPage() {
     });
   }, []);
 
-
   // --------------------------------------------------
   // LOAD DAILY CONTENT / ATTEMPT / STATS
   // --------------------------------------------------
@@ -178,11 +179,13 @@ export default function DailyQuestionPage() {
           );
         }
       } catch (error) {
-        console.error("Error loading daily practice:", error);
+        console.error(
+          "Error loading daily practice:",
+          error
+        );
       }
     })();
   }, [user, date, section]);
-
 
   // --------------------------------------------------
   // QUESTIONS
@@ -195,7 +198,6 @@ export default function DailyQuestionPage() {
       : section === "varc"
         ? data.varc.questions
         : data.dilr.questions;
-
 
   // --------------------------------------------------
   // TITLE
@@ -211,7 +213,6 @@ export default function DailyQuestionPage() {
           : "RC of the Day"
         : "DILR Set of the Day";
 
-
   // --------------------------------------------------
   // TIMER
   // --------------------------------------------------
@@ -225,18 +226,21 @@ export default function DailyQuestionPage() {
     }
 
     const id = window.setInterval(() => {
-      setSeconds((current) => Math.max(0, current - 1));
+      setSeconds((current) =>
+        Math.max(0, current - 1)
+      );
     }, 1000);
 
     return () => window.clearInterval(id);
 
-    // submitAttempt intentionally omitted.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [started, submitted, seconds]);
 
-
   // --------------------------------------------------
   // SUBMIT
+  // +3 CORRECT
+  // -1 WRONG
+  // 0 UNATTEMPTED
   // --------------------------------------------------
 
   async function submitAttempt(auto = false) {
@@ -260,9 +264,26 @@ export default function DailyQuestionPage() {
       0
     );
 
-    const total = questions.length;
+    const attempted = Object.keys(answers).length;
 
-    const score = correct;
+    const wrong = Math.max(
+      0,
+      attempted - correct
+    );
+
+    const unanswered = Math.max(
+      0,
+      questions.length - attempted
+    );
+
+    // CAT-style scoring:
+    // Correct = +3
+    // Wrong = -1
+    // Unattempted = 0
+    const score =
+      correct * 3 - wrong;
+
+    const total = questions.length;
 
     const attemptId =
       `${date}_${section}_${user.uid}`;
@@ -284,8 +305,7 @@ export default function DailyQuestionPage() {
           statId
         );
 
-        // IMPORTANT:
-        // All reads happen before writes.
+        // All reads before writes.
         const attemptSnap =
           await transaction.get(attemptRef);
 
@@ -298,23 +318,37 @@ export default function DailyQuestionPage() {
 
         const currentCount =
           statSnap.exists()
-            ? Number(statSnap.data().count || 0)
+            ? Number(
+                statSnap.data().count || 0
+              )
             : 0;
 
         transaction.set(attemptRef, {
           userId: user.uid,
           email: user.email || "",
-          displayName: user.displayName || "",
+          displayName:
+            user.displayName || "",
           date,
           section,
+
           score,
+
           correct,
+          wrong,
+          unanswered,
+          attempted,
+
           total,
+
           answers,
+
           timeTakenSeconds:
             15 * 60 - seconds,
+
           timedOut: auto,
-          submittedAt: serverTimestamp(),
+
+          submittedAt:
+            serverTimestamp(),
         });
 
         transaction.set(
@@ -323,14 +357,14 @@ export default function DailyQuestionPage() {
             date,
             section,
             count: currentCount + 1,
-            updatedAt: serverTimestamp(),
+            updatedAt:
+              serverTimestamp(),
           },
           {
             merge: true,
           }
         );
       });
-
 
       // Reload saved attempt
       const savedAttempt =
@@ -343,9 +377,10 @@ export default function DailyQuestionPage() {
         );
 
       if (savedAttempt.exists()) {
-        setAttempt(savedAttempt.data());
+        setAttempt(
+          savedAttempt.data()
+        );
       }
-
 
       // Reload stats
       const statSnap =
@@ -384,9 +419,8 @@ export default function DailyQuestionPage() {
     }
   }
 
-
   // --------------------------------------------------
-  // LOADING / AUTH
+  // LOADING
   // --------------------------------------------------
 
   if (authLoading) {
@@ -397,10 +431,14 @@ export default function DailyQuestionPage() {
     );
   }
 
+  // --------------------------------------------------
+  // NOT LOGGED IN
+  // --------------------------------------------------
 
   if (!user) {
     return (
       <div className="mx-auto max-w-xl px-4 py-20 text-center">
+
         <h1 className="font-display text-2xl font-bold">
           Sign in to attempt today&apos;s practice
         </h1>
@@ -411,44 +449,61 @@ export default function DailyQuestionPage() {
         >
           Continue with Google
         </Link>
+
       </div>
     );
   }
 
+  // --------------------------------------------------
+  // NO DATA
+  // --------------------------------------------------
 
   if (!data) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
+
         <h1 className="font-display text-2xl font-bold">
           Today&apos;s practice is being prepared.
         </h1>
+
       </div>
     );
   }
-
 
   // --------------------------------------------------
   // DISPLAY VALUES
   // --------------------------------------------------
 
   const timeText =
-    `${String(Math.floor(seconds / 60)).padStart(2, "0")}:` +
-    `${String(seconds % 60).padStart(2, "0")}`;
+    `${String(
+      Math.floor(seconds / 60)
+    ).padStart(2, "0")}:` +
+    `${String(
+      seconds % 60
+    ).padStart(2, "0")}`;
 
   const answered =
     Object.keys(answers).length;
 
-  const displayScore =
-    attempt?.score ??
-    questions.reduce(
-      (sum, question, index) =>
-        sum +
-        (answers[index] === question.correctOption
-          ? 1
-          : 0),
-      0
+  // Saved result values
+  const resultCorrect =
+    Number(attempt?.correct || 0);
+
+  const resultWrong =
+    Number(attempt?.wrong || 0);
+
+  const resultUnanswered =
+    Number(
+      attempt?.unanswered ??
+      Math.max(
+        0,
+        questions.length -
+          Number(attempt?.attempted || 0)
+      )
     );
 
+  const resultScore =
+    Number(attempt?.score || 0);
 
   // --------------------------------------------------
   // PAGE
@@ -457,13 +512,18 @@ export default function DailyQuestionPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
 
-      {/* HEADER */}
+      {/* ------------------------------------------------
+          HEADER
+      ------------------------------------------------ */}
+
       <div className="flex flex-wrap items-start justify-between gap-4">
 
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-dark">
             Daily Practice ·{" "}
-            {new Date(`${date}T12:00:00`).toLocaleDateString(
+            {new Date(
+              `${date}T12:00:00`
+            ).toLocaleDateString(
               "en-IN",
               {
                 day: "numeric",
@@ -483,33 +543,129 @@ export default function DailyQuestionPage() {
         </div>
 
 
-        <div className="flex items-center gap-3">
+        {/* ------------------------------------------------
+            TOP RIGHT RESULT / TIMER
+        ------------------------------------------------ */}
 
-          <div className="hidden items-center gap-1.5 text-xs font-semibold text-muted sm:flex">
-            <Users size={14} />
-            {statsCount} attempted
+        {!submitted ? (
+
+          <div className="flex items-center gap-3">
+
+            <div className="hidden items-center gap-1.5 text-xs font-semibold text-muted sm:flex">
+              <Users size={14} />
+              {statsCount} attempted
+            </div>
+
+            <div className="rounded-xl border border-border bg-white px-4 py-2.5 text-center shadow-sm">
+
+              <div className="flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted">
+                <Clock3 size={12} />
+                Time left
+              </div>
+
+              <div className="mt-0.5 font-mono text-xl font-extrabold tabular-nums text-brand-dark">
+                {timeText}
+              </div>
+
+            </div>
+
+          </div>
+
+        ) : (
+
+          <div className="rounded-2xl border border-brand/20 bg-white px-5 py-4 text-right shadow-sm">
+
+            <div className="flex items-center justify-end gap-2 text-xs font-bold uppercase tracking-wide text-muted">
+              <Trophy
+                size={15}
+                className="text-brand"
+              />
+              Your Score
+            </div>
+
+            <div className="mt-1 font-display text-3xl font-extrabold text-brand-dark">
+              {resultScore}
+            </div>
+
+            <div className="mt-1 text-xs text-muted">
+              out of{" "}
+              <span className="font-semibold">
+                {questions.length * 3}
+              </span>
+            </div>
+
+          </div>
+
+        )}
+
+      </div>
+
+
+      {/* ------------------------------------------------
+          SCORE BREAKDOWN AFTER SUBMISSION
+      ------------------------------------------------ */}
+
+      {submitted && (
+        <div className="mt-5 grid grid-cols-3 gap-3">
+
+          <div className="rounded-xl border border-brand/20 bg-brand-tint p-3 text-center">
+
+            <div className="text-xs font-semibold text-muted">
+              Correct
+            </div>
+
+            <div className="mt-1 text-lg font-bold text-brand-darker">
+              {resultCorrect}
+            </div>
+
+            <div className="text-[11px] font-semibold text-brand-darker">
+              +{resultCorrect * 3} marks
+            </div>
+
           </div>
 
 
-          <div className="rounded-xl border border-border bg-white px-4 py-2.5 text-center shadow-sm">
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center">
 
-            <div className="flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted">
-              <Clock3 size={12} />
-              Time left
+            <div className="text-xs font-semibold text-muted">
+              Wrong
             </div>
 
-            <div className="mt-0.5 font-mono text-xl font-extrabold tabular-nums text-brand-dark">
-              {timeText}
+            <div className="mt-1 text-lg font-bold text-danger">
+              {resultWrong}
+            </div>
+
+            <div className="text-[11px] font-semibold text-danger">
+              -{resultWrong} marks
+            </div>
+
+          </div>
+
+
+          <div className="rounded-xl border border-border bg-white p-3 text-center">
+
+            <div className="text-xs font-semibold text-muted">
+              Unattempted
+            </div>
+
+            <div className="mt-1 text-lg font-bold">
+              {resultUnanswered}
+            </div>
+
+            <div className="text-[11px] font-semibold text-muted">
+              0 marks
             </div>
 
           </div>
 
         </div>
+      )}
 
-      </div>
 
+      {/* ------------------------------------------------
+          RC PASSAGE
+      ------------------------------------------------ */}
 
-      {/* RC PASSAGE */}
       {section === "varc" &&
         data.varc.type === "RC" && (
           <div className="mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6">
@@ -530,12 +686,16 @@ export default function DailyQuestionPage() {
         )}
 
 
-      {/* DILR SET */}
+      {/* ------------------------------------------------
+          DILR SET
+      ------------------------------------------------ */}
+
       {section === "dilr" && (
         <div className="mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6">
 
           <h2 className="font-display text-lg font-bold">
-            {data.dilr.title || "DILR Set"}
+            {data.dilr.title ||
+              "DILR Set"}
           </h2>
 
           <div className="mt-4">
@@ -549,7 +709,10 @@ export default function DailyQuestionPage() {
       )}
 
 
-      {/* START SCREEN */}
+      {/* ------------------------------------------------
+          START SCREEN
+      ------------------------------------------------ */}
+
       {!started && !submitted && (
         <div className="mt-6 rounded-2xl border border-border bg-white p-6 text-center">
 
@@ -571,7 +734,9 @@ export default function DailyQuestionPage() {
           </p>
 
           <button
-            onClick={() => setStarted(true)}
+            onClick={() =>
+              setStarted(true)
+            }
             className="mt-5 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white hover:bg-brand-dark"
           >
             Start {sectionLabel(section)} Test
@@ -581,7 +746,10 @@ export default function DailyQuestionPage() {
       )}
 
 
-      {/* TIMER MESSAGE */}
+      {/* ------------------------------------------------
+          TIMER MESSAGE
+      ------------------------------------------------ */}
+
       {started && !submitted && (
         <div className="mt-5 rounded-xl border border-brand/20 bg-brand-tint px-4 py-3 text-sm font-semibold text-brand-darker">
           Timer is running. When it reaches 00:00,
@@ -590,191 +758,214 @@ export default function DailyQuestionPage() {
       )}
 
 
-      {/* QUESTIONS
-          IMPORTANT:
-          Questions are now shown ONLY after Start
-          or after submission.
-      */}
+      {/* ------------------------------------------------
+          QUESTIONS
+      ------------------------------------------------ */}
+
       {(started || submitted) && (
         <div className="mt-5 space-y-5">
 
-          {questions.map((question, index) => {
+          {questions.map(
+            (question, index) => {
 
-            const selected =
-              answers[index];
+              const selected =
+                answers[index];
 
-            const isSubmitted =
-              submitted;
+              const isSubmitted =
+                submitted;
 
-            const correct =
-              isSubmitted &&
-              selected === question.correctOption;
+              const correct =
+                isSubmitted &&
+                selected ===
+                  question.correctOption;
 
-            return (
-              <div
-                key={index}
-                className="rounded-2xl border border-border bg-white p-5 sm:p-6"
-              >
+              return (
+                <div
+                  key={index}
+                  className="rounded-2xl border border-border bg-white p-5 sm:p-6"
+                >
 
-                <div className="text-xs font-bold uppercase tracking-wide text-muted">
-                  Question {index + 1}
-                </div>
-
-
-                {question.title && (
-                  <h3 className="mt-1 font-display text-lg font-bold">
-                    {question.title}
-                  </h3>
-                )}
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">
+                    Question {index + 1}
+                  </div>
 
 
-                <div className="mt-4">
-                  <Content
-                    media={question.question}
-                    alt={`Question ${index + 1}`}
-                  />
-                </div>
-
-
-                <div className="mt-6 grid gap-2.5">
-
-                  {question.options.map(
-                    (option) => {
-
-                      const isCorrect =
-                        isSubmitted &&
-                        option.label ===
-                          question.correctOption;
-
-                      const isWrong =
-                        isSubmitted &&
-                        selected ===
-                          option.label &&
-                        option.label !==
-                          question.correctOption;
-
-                      return (
-                        <button
-                          key={option.label}
-                          disabled={
-                            !started ||
-                            submitted
-                          }
-                          onClick={() =>
-                            setAnswers(
-                              (current) => ({
-                                ...current,
-                                [index]:
-                                  option.label,
-                              })
-                            )
-                          }
-                          className={`rounded-xl border px-4 py-3 text-left transition ${
-                            isCorrect
-                              ? "border-brand bg-brand-tint"
-                              : isWrong
-                                ? "border-danger/40 bg-red-50"
-                                : selected ===
-                                    option.label
-                                  ? "border-brand bg-brand-tint"
-                                  : "border-border hover:border-brand/50"
-                          }`}
-                        >
-
-                          <div className="flex gap-3">
-
-                            <span className="mt-0.5 shrink-0 font-semibold">
-                              {option.label}.
-                            </span>
-
-                            <div className="min-w-0 flex-1">
-                              <Content
-                                media={
-                                  option.content
-                                }
-                                alt={`Option ${option.label}`}
-                              />
-                            </div>
-
-                            {isCorrect && (
-                              <CheckCircle2
-                                className="mt-0.5 shrink-0 text-brand"
-                                size={18}
-                              />
-                            )}
-
-                          </div>
-
-                        </button>
-                      );
-                    }
+                  {question.title && (
+                    <h3 className="mt-1 font-display text-lg font-bold">
+                      {question.title}
+                    </h3>
                   )}
 
-                </div>
+
+                  <div className="mt-4">
+                    <Content
+                      media={
+                        question.question
+                      }
+                      alt={`Question ${index + 1}`}
+                    />
+                  </div>
 
 
-                {/* SOLUTION */}
-                {isSubmitted && (
-                  <div className="mt-6 rounded-2xl bg-surface-muted p-5">
+                  {/* OPTIONS */}
 
-                    <p
-                      className={`text-sm font-bold ${
-                        correct
-                          ? "text-brand-darker"
-                          : "text-danger"
-                      }`}
-                    >
-                      {correct
-                        ? "Correct!"
-                        : `Incorrect — correct answer: ${question.correctOption}`}
-                    </p>
+                  <div className="mt-6 grid gap-2.5">
 
+                    {question.options.map(
+                      (option) => {
 
-                    {question.solution?.value && (
-                      <div className="mt-5">
+                        const isCorrect =
+                          isSubmitted &&
+                          option.label ===
+                            question.correctOption;
 
-                        <p className="mb-2 text-xs font-semibold">
-                          Solution
-                        </p>
+                        const isWrong =
+                          isSubmitted &&
+                          selected ===
+                            option.label &&
+                          option.label !==
+                            question.correctOption;
 
-                        <Content
-                          media={question.solution}
-                          alt="Solution"
-                        />
+                        return (
+                          <button
+                            key={option.label}
+                            disabled={
+                              !started ||
+                              submitted
+                            }
+                            onClick={() =>
+                              setAnswers(
+                                (current) => ({
+                                  ...current,
+                                  [index]:
+                                    option.label,
+                                })
+                              )
+                            }
+                            className={`rounded-xl border px-4 py-3 text-left transition ${
+                              isCorrect
+                                ? "border-brand bg-brand-tint"
+                                : isWrong
+                                  ? "border-danger/40 bg-red-50"
+                                  : selected ===
+                                      option.label
+                                    ? "border-brand bg-brand-tint"
+                                    : "border-border hover:border-brand/50"
+                            }`}
+                          >
 
-                      </div>
-                    )}
+                            <div className="flex gap-3">
 
+                              <span className="mt-0.5 shrink-0 font-semibold">
+                                {option.label}.
+                              </span>
 
-                    {question.explanation?.value && (
-                      <div className="mt-5 border-t border-border pt-4">
+                              <div className="min-w-0 flex-1">
+                                <Content
+                                  media={
+                                    option.content
+                                  }
+                                  alt={`Option ${option.label}`}
+                                />
+                              </div>
 
-                        <p className="mb-2 text-xs font-semibold">
-                          Explanation
-                        </p>
+                              {isCorrect && (
+                                <CheckCircle2
+                                  className="mt-0.5 shrink-0 text-brand"
+                                  size={18}
+                                />
+                              )}
 
-                        <Content
-                          media={
-                            question.explanation
-                          }
-                          alt="Explanation"
-                        />
+                              {isWrong && (
+                                <XCircle
+                                  className="mt-0.5 shrink-0 text-danger"
+                                  size={18}
+                                />
+                              )}
 
-                      </div>
+                            </div>
+
+                          </button>
+                        );
+                      }
                     )}
 
                   </div>
-                )}
 
-              </div>
-            );
-          })}
+
+                  {/* ------------------------------------------------
+                      SOLUTION AFTER SUBMISSION
+                  ------------------------------------------------ */}
+
+                  {isSubmitted && (
+                    <div className="mt-6 rounded-2xl bg-surface-muted p-5">
+
+                      <p
+                        className={`text-sm font-bold ${
+                          correct
+                            ? "text-brand-darker"
+                            : "text-danger"
+                        }`}
+                      >
+                        {correct
+                          ? "Correct! +3 marks"
+                          : selected
+                            ? `Incorrect — correct answer: ${question.correctOption} · -1 mark`
+                            : `Not attempted — correct answer: ${question.correctOption} · 0 marks`}
+                      </p>
+
+
+                      {question.solution?.value && (
+                        <div className="mt-5">
+
+                          <p className="mb-2 text-xs font-semibold">
+                            Solution
+                          </p>
+
+                          <Content
+                            media={
+                              question.solution
+                            }
+                            alt="Solution"
+                          />
+
+                        </div>
+                      )}
+
+
+                      {question.explanation?.value && (
+                        <div className="mt-5 border-t border-border pt-4">
+
+                          <p className="mb-2 text-xs font-semibold">
+                            Explanation
+                          </p>
+
+                          <Content
+                            media={
+                              question.explanation
+                            }
+                            alt="Explanation"
+                          />
+
+                        </div>
+                      )}
+
+                    </div>
+                  )}
+
+                </div>
+              );
+            }
+          )}
 
         </div>
       )}
 
 
-      {/* SUBMIT BAR */}
+      {/* ------------------------------------------------
+          SUBMIT BAR
+      ------------------------------------------------ */}
+
       {started && !submitted && (
         <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-4 rounded-2xl border border-border bg-white p-4 shadow-lg">
 
@@ -801,27 +992,16 @@ export default function DailyQuestionPage() {
       )}
 
 
-      {/* RESULT */}
+      {/* ------------------------------------------------
+          BOTTOM - NO SCORE HERE
+      ------------------------------------------------ */}
+
       {submitted && (
-        <div className="mt-6 rounded-2xl border border-brand/30 bg-brand-tint p-6 text-center">
-
-          <p className="text-xs font-bold uppercase tracking-wide text-brand-darker">
-            Section complete
-          </p>
-
-          <h2 className="mt-1 font-display text-2xl font-bold">
-            Score: {displayScore}/{questions.length}
-          </h2>
-
-          <p className="mt-1 text-sm text-muted">
-            {attempt?.correct ??
-              displayScore}{" "}
-            correct · {statsCount} people have attempted this section today.
-          </p>
+        <div className="mt-8 flex justify-center">
 
           <Link
             href="/daily"
-            className="mt-5 inline-flex rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-white"
+            className="inline-flex rounded-full bg-brand px-6 py-3 text-sm font-bold text-white hover:bg-brand-dark"
           >
             Back to Daily Practice
           </Link>
