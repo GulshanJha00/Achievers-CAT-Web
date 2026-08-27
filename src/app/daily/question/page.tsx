@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   doc,
   getDoc,
@@ -20,6 +20,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 type MediaValue = {
   type: "text" | "image";
@@ -96,14 +97,18 @@ function Content({
   );
 }
 
-export default function DailyQuestionPage() {
-  const params =
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search)
-      : null;
+function DailyQuestionContent() {
+  /*
+   * IMPORTANT: useSearchParams() is required here instead of reading
+   * window.location.search once. Next.js client navigation between
+   * /daily/question?section=quant and /daily/question?section=varc
+   * keeps the same page component mounted, so a one-time window.location
+   * read would leave the page stuck on Quant.
+   */
+  const searchParams = useSearchParams();
 
   const requestedSection =
-    (params?.get("section") || "quant") as Section;
+    (searchParams.get("section") || "quant") as Section;
 
   const section: Section =
     requestedSection === "quant" ||
@@ -142,6 +147,24 @@ export default function DailyQuestionPage() {
     useState(0);
 
   const date = useMemo(() => todayIST(), []);
+
+  /*
+   * When the user changes Daily Practice section from the Header,
+   * reset all section-specific state before loading the new section.
+   * This prevents Quant data/answers/results from flashing on VARC
+   * or DILR during client-side navigation.
+   */
+  useEffect(() => {
+    setData(null);
+    setAttempt(null);
+    setAnswers({});
+    setSeconds(15 * 60);
+    setStarted(false);
+    setSubmitted(false);
+    setSaving(false);
+    setStatsCount(0);
+    setCurrentQuestion(0);
+  }, [section]);
 
   /*
    * --------------------------------------------------
@@ -460,6 +483,7 @@ export default function DailyQuestionPage() {
             attemptRef,
             {
               userId: user.uid,
+              email: user.email || "",
               displayName:
                 user.displayName || "",
 
@@ -508,6 +532,7 @@ export default function DailyQuestionPage() {
             leaderboardEntryRef,
             {
               userId: user.uid,
+              email: user.email || "",
               displayName:
                 user.displayName || "",
 
@@ -1299,5 +1324,24 @@ export default function DailyQuestionPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/*
+ * useSearchParams() requires a Suspense boundary in Next.js when this
+ * route is statically rendered. Keeping the boundary here also makes
+ * query-string navigation reliable in production builds.
+ */
+export default function DailyQuestionPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Loader2 className="animate-spin text-brand" />
+        </div>
+      }
+    >
+      <DailyQuestionContent />
+    </Suspense>
   );
 }
