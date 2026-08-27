@@ -29,6 +29,15 @@ function addAchieversBridge(html: string) {
         });
         send('submitted', { score: score, total: QUESTIONS.length, correct: correct, wrong: wrong, answers: answers, secondsLeft: typeof secsLeft === 'number' ? secsLeft : 0 });
       }
+      function hideIntroForAnalysis() {
+        var intro = document.querySelectorAll('#start-screen, #welcome-screen, #instructions-screen, #intro-screen, [data-screen="start"], [data-screen="intro"], [class*="instructions" i], [class*="rules" i]');
+        intro.forEach(function (element) { element.style.display = 'none'; });
+        Array.prototype.forEach.call(document.querySelectorAll('button, a'), function (control) {
+          if (!/start exam/i.test((control.textContent || '').trim())) return;
+          var container = control.closest('[id*="start" i], [class*="start" i], [id*="intro" i], [class*="intro" i]');
+          if (container) container.style.display = 'none';
+        });
+      }
       document.addEventListener('DOMContentLoaded', function () {
         var result = document.getElementById('result-screen');
         if (result) new MutationObserver(function () {
@@ -44,6 +53,7 @@ function addAchieversBridge(html: string) {
           answers = data.answers;
           submitted = true;
           if (typeof clearInterval === 'function' && typeof timerInt !== 'undefined') clearInterval(timerInt);
+          hideIntroForAnalysis();
           showResults();
         }
       });
