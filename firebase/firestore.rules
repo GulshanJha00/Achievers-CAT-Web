@@ -249,8 +249,7 @@ service cloud.firestore {
       allow read:
         if signedIn()
         && (
-          resource.data.userId ==
-            request.auth.uid
+          resource.data.userId == request.auth.uid
           || isAdmin()
         );
 
@@ -432,8 +431,10 @@ service cloud.firestore {
       allow read:
         if signedIn()
         && (
-          resource.data.userId ==
-            request.auth.uid
+          // The app checks this deterministic document before a first
+          // attempt exists, so resource.data is unavailable at that point.
+          attemptId.matches('^' + request.auth.uid + '_.*')
+          || resource.data.userId == request.auth.uid
           || isAdmin()
         );
 
