@@ -397,6 +397,14 @@ export default function Home() {
 
   return (
     <div>
+      <div className="overflow-hidden border-b border-brand/20 bg-brand-tint py-2">
+        <div className="announcement-scroll w-max whitespace-nowrap px-4 text-sm font-semibold text-brand-darker">
+          ACHIEVERS CAT is everything you need for CAT — join the WhatsApp group for more updates: {" "}
+          <a href="https://chat.whatsapp.com/L59MZiqz4ueKOSEyZ06TxD" target="_blank" rel="noreferrer" className="underline underline-offset-2">
+            https://chat.whatsapp.com/L59MZiqz4ueKOSEyZ06TxD
+          </a>
+        </div>
+      </div>
       {/* --------------------------------------------------
           HERO
       -------------------------------------------------- */}

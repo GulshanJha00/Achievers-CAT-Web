@@ -14,7 +14,7 @@ const sections = [
   { title: "Daily Practice", desc: "Create and edit Question of the Day with text/image questions, options and solutions.", href: "/admin/daily" },
   { title: "Sectional Mocks", desc: "Upload, edit, publish or delete VARC, DILR and QA HTML mocks.", href: "/admin/mocks?type=sectional" },
   { title: "Full Mocks", desc: "Upload, edit, publish or delete your full CAT HTML mocks.", href: "/admin/mocks?type=full" },
-  { title: "Materials", desc: "Materials management will be connected next.", href: "/materials" },
+  { title: "Materials", desc: "Upload materials by CAT section and topic.", href: "/admin/materials" },
   { title: "Students", desc: "Student accounts and performance are stored in Firebase.", href: "/performance" },
 ];
 

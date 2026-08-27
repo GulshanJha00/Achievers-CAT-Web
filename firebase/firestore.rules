@@ -51,6 +51,15 @@ service cloud.firestore {
         if isAdmin();
     }
 
+    match /materials/{materialId} {
+      allow read:
+        if signedIn()
+        && (resource.data.published == true || isAdmin());
+
+      allow create, update, delete:
+        if isAdmin();
+    }
+
 
     // --------------------------------------------------
     // MOCKS

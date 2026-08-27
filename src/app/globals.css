@@ -61,6 +61,15 @@ h1, h2, h3, h4, .font-display {
   border-radius: 999px;
 }
 
+@keyframes announcement-scroll {
+  from { transform: translateX(100%); }
+  to { transform: translateX(-100%); }
+}
+
+.announcement-scroll {
+  animation: announcement-scroll 24s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.001ms !important;
