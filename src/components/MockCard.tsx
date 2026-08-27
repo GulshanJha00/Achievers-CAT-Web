@@ -11,6 +11,7 @@ export type MockSummary = {
   section?: string;
   attempted?: {
     score: number;
+    total?: number;
     percentile?: number;
     attemptedOn: string;
   };
@@ -49,7 +50,7 @@ export default function MockCard({ mock }: { mock: MockSummary }) {
         </div>
         {mock.attempted && (
           <p className="mt-2 text-[12.5px] text-muted">
-            Attempted {mock.attempted.attemptedOn} · Score {mock.attempted.score}
+            Attempted {mock.attempted.attemptedOn} · Score {mock.attempted.score}{typeof mock.attempted.total === "number" ? `/${mock.attempted.total * 3}` : ""}
             {mock.attempted.percentile ? ` · ${mock.attempted.percentile} %ile` : ""}
           </p>
         )}
@@ -61,7 +62,7 @@ export default function MockCard({ mock }: { mock: MockSummary }) {
         rel="noopener noreferrer"
         className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-brand px-4 py-2 text-[13.5px] font-semibold text-white transition hover:bg-brand-dark"
       >
-        Open Mock <ArrowUpRight size={14} />
+        {mock.attempted ? "Mock Analysis" : "Open Mock"} <ArrowUpRight size={14} />
       </Link>
     </div>
   );
