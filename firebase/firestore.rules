@@ -439,14 +439,19 @@ service cloud.firestore {
 
       allow create:
         if signedIn()
-        && request.resource.data.userId ==
-          request.auth.uid;
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.mockId is string
+        && attemptId == request.auth.uid + '_' + request.resource.data.mockId
+        && request.resource.data.status == 'in_progress';
 
       allow update:
         if signedIn()
         && (
-          resource.data.userId ==
-            request.auth.uid
+          resource.data.userId == request.auth.uid
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.mockId == resource.data.mockId
+          && resource.data.status == 'in_progress'
+          && request.resource.data.status == 'submitted'
           || isAdmin()
         );
 
