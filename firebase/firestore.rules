@@ -167,6 +167,32 @@ service cloud.firestore {
 
 
     // --------------------------------------------------
+    // USER STREAKS
+    // --------------------------------------------------
+
+    // One document per student. A streak is updated when a
+    // Daily Practice section is successfully submitted.
+    match /user_streaks/{uid} {
+
+      allow read: if isOwner(uid) || isAdmin();
+
+      allow create: if isOwner(uid)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.currentStreak is number
+        && request.resource.data.longestStreak is number
+        && request.resource.data.lastActivityDate is string;
+
+      allow update: if isOwner(uid)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.currentStreak is number
+        && request.resource.data.longestStreak is number
+        && request.resource.data.lastActivityDate is string;
+
+      allow delete: if isAdmin();
+    }
+
+
+    // --------------------------------------------------
     // DAILY SECTION STATS
     // --------------------------------------------------
 

@@ -145,6 +145,7 @@ function formatScore(score: number) {
 export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [streak, setStreak] = useState(0);
 
   const [attempts, setAttempts] = useState<
     Record<Section, Attempt | null>
@@ -180,6 +181,36 @@ export default function Home() {
 
     return () => unsubscribe();
   }, []);
+
+  /*
+   * --------------------------------------------------
+   * LIVE USER STREAK
+   * --------------------------------------------------
+   */
+
+  useEffect(() => {
+    if (!user) {
+      setStreak(0);
+      return;
+    }
+
+    const streakRef = doc(db, "user_streaks", user.uid);
+
+    return onSnapshot(
+      streakRef,
+      (snap) => {
+        setStreak(
+          snap.exists()
+            ? Number(snap.data().currentStreak || 0)
+            : 0
+        );
+      },
+      (error) => {
+        console.error("Could not listen to user streak:", error);
+        setStreak(0);
+      }
+    );
+  }, [user]);
 
   /*
    * --------------------------------------------------
@@ -419,7 +450,7 @@ export default function Home() {
 
                 <span className="inline-flex items-center gap-1 rounded-full bg-brand-tint px-2.5 py-1 text-[12px] font-semibold text-brand-darker">
                   <Flame size={12} className="text-flame" />
-                  7-day streak
+                  {streak}-day streak
                 </span>
               </div>
 

@@ -72,6 +72,15 @@ const sectionLabel = (s: Section) =>
       ? "VARC"
       : "DILR";
 
+const yesterdayIST = (date: string) => {
+  const d = new Date(`${date}T12:00:00+05:30`);
+  d.setDate(d.getDate() - 1);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+  }).format(d);
+};
+
+
 function Content({
   media,
   alt,
@@ -451,6 +460,12 @@ function DailyQuestionContent() {
             statId
           );
 
+          const streakRef = doc(
+            db,
+            "user_streaks",
+            user.uid
+          );
+
           const attemptSnap =
             await transaction.get(
               attemptRef
@@ -459,6 +474,11 @@ function DailyQuestionContent() {
           const statSnap =
             await transaction.get(
               statRef
+            );
+
+          const streakSnap =
+            await transaction.get(
+              streakRef
             );
 
           /*
@@ -548,6 +568,44 @@ function DailyQuestionContent() {
                 serverTimestamp(),
             }
           );
+
+          /*
+           * DAILY STREAK
+           *
+           * The streak is per calendar day, not per section.
+           * Submitting multiple sections on the same day therefore
+           * increases the streak only once. Any one completed section
+           * is enough to keep the streak alive.
+           */
+          const previousStreak = streakSnap.exists()
+            ? Number(streakSnap.data().currentStreak || 0)
+            : 0;
+          const lastActivityDate = streakSnap.exists()
+            ? String(streakSnap.data().lastActivityDate || "")
+            : "";
+
+          if (lastActivityDate !== date) {
+            const newStreak =
+              lastActivityDate === yesterdayIST(date)
+                ? previousStreak + 1
+                : 1;
+
+            const previousLongest = streakSnap.exists()
+              ? Number(streakSnap.data().longestStreak || 0)
+              : 0;
+
+            transaction.set(
+              streakRef,
+              {
+                userId: user.uid,
+                currentStreak: newStreak,
+                longestStreak: Math.max(previousLongest, newStreak),
+                lastActivityDate: date,
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
         }
       );
 
