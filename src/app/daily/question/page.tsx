@@ -15,8 +15,6 @@ import {
   Clock3,
   Loader2,
   Users,
-  Trophy,
-  XCircle,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -63,11 +61,12 @@ const todayIST = () =>
     timeZone: "Asia/Kolkata",
   }).format(new Date());
 
-const sectionLabel = (section: Section) => {
-  if (section === "quant") return "Quantitative Aptitude";
-  if (section === "varc") return "VARC";
-  return "DILR";
-};
+const sectionLabel = (s: Section) =>
+  s === "quant"
+    ? "Quantitative Aptitude"
+    : s === "varc"
+      ? "VARC"
+      : "DILR";
 
 function Content({
   media,
@@ -79,7 +78,12 @@ function Content({
   if (!media?.value) return null;
 
   if (media.type === "image") {
-    return <AssetImage assetId={media.value} alt={alt} />;
+    return (
+      <AssetImage
+        assetId={media.value}
+        alt={alt}
+      />
+    );
   }
 
   return (
@@ -92,80 +96,109 @@ function Content({
 export default function DailyQuestionPage() {
   const params =
     typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search)
+      ? new URLSearchParams(
+          window.location.search
+        )
       : null;
 
-  const section = (params?.get("section") || "quant") as Section;
+  const section =
+    (params?.get("section") || "quant") as Section;
 
-  const [user, setUser] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] =
+    useState<any>(null);
 
-  const [data, setData] = useState<Package | null>(null);
-  const [attempt, setAttempt] = useState<any>(null);
+  const [authLoading, setAuthLoading] =
+    useState(true);
 
-  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [data, setData] =
+    useState<Package | null>(null);
 
-  const [seconds, setSeconds] = useState(15 * 60);
+  const [attempt, setAttempt] =
+    useState<any>(null);
 
-  const [started, setStarted] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [answers, setAnswers] =
+    useState<Record<number, string>>({});
 
-  const [saving, setSaving] = useState(false);
-  const [statsCount, setStatsCount] = useState(0);
+  const [seconds, setSeconds] =
+    useState(15 * 60);
 
-  const date = useMemo(todayIST, []);
+  const [started, setStarted] =
+    useState(false);
+
+  const [submitted, setSubmitted] =
+    useState(false);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [statsCount, setStatsCount] =
+    useState(0);
+
+  const date = useMemo(
+    todayIST,
+    []
+  );
+
 
   // --------------------------------------------------
   // AUTH
   // --------------------------------------------------
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setAuthLoading(false);
-    });
+    return onAuthStateChanged(
+      auth,
+      (u) => {
+        setUser(u);
+        setAuthLoading(false);
+      }
+    );
   }, []);
 
+
   // --------------------------------------------------
-  // LOAD DAILY CONTENT / ATTEMPT / STATS
+  // LOAD DAILY PACKAGE
   // --------------------------------------------------
 
   useEffect(() => {
     if (!user) return;
 
     (async () => {
-      try {
-        const packageSnap = await getDoc(
-          doc(db, "daily_packages", date)
-        );
-
-        if (
-          packageSnap.exists() &&
-          packageSnap.data().published !== false
-        ) {
-          setData(packageSnap.data() as Package);
-        }
-
-        const attemptRef = doc(
+      const snap = await getDoc(
+        doc(
           db,
-          "daily_attempts",
-          `${date}_${section}_${user.uid}`
+          "daily_packages",
+          date
+        )
+      );
+
+      if (
+        snap.exists() &&
+        snap.data().published !== false
+      ) {
+        setData(
+          snap.data() as Package
+        );
+      }
+
+      const attemptSnap =
+        await getDoc(
+          doc(
+            db,
+            "daily_attempts",
+            `${date}_${section}_${user.uid}`
+          )
         );
 
-        const attemptSnap = await getDoc(attemptRef);
+      if (attemptSnap.exists()) {
+        setAttempt(
+          attemptSnap.data()
+        );
 
-        if (attemptSnap.exists()) {
-          const savedAttempt = attemptSnap.data();
+        setSubmitted(true);
+      }
 
-          setAttempt(savedAttempt);
-          setSubmitted(true);
-
-          if (savedAttempt.answers) {
-            setAnswers(savedAttempt.answers);
-          }
-        }
-
-        const statSnap = await getDoc(
+      const statSnap =
+        await getDoc(
           doc(
             db,
             "daily_section_stats",
@@ -173,77 +206,99 @@ export default function DailyQuestionPage() {
           )
         );
 
-        if (statSnap.exists()) {
-          setStatsCount(
-            Number(statSnap.data().count || 0)
-          );
-        }
-      } catch (error) {
-        console.error(
-          "Error loading daily practice:",
-          error
+      if (statSnap.exists()) {
+        setStatsCount(
+          Number(
+            statSnap.data().count || 0
+          )
         );
       }
-    })();
-  }, [user, date, section]);
+    })().catch(console.error);
+  }, [
+    user,
+    date,
+    section,
+  ]);
+
 
   // --------------------------------------------------
   // QUESTIONS
   // --------------------------------------------------
 
-  const questions = !data
-    ? []
-    : section === "quant"
-      ? data.quant
-      : section === "varc"
-        ? data.varc.questions
-        : data.dilr.questions;
+  const questions =
+    !data
+      ? []
+      : section === "quant"
+        ? data.quant
+        : section === "varc"
+          ? data.varc.questions
+          : data.dilr.questions;
+
 
   // --------------------------------------------------
   // TITLE
   // --------------------------------------------------
 
-  const title = !data
-    ? sectionLabel(section)
-    : section === "quant"
-      ? "Quantitative Aptitude"
-      : section === "varc"
-        ? data.varc.type === "VA"
-          ? "VA of the Day"
-          : "RC of the Day"
-        : "DILR Set of the Day";
+  const title =
+    !data
+      ? sectionLabel(section)
+      : section === "quant"
+        ? "Quantitative Aptitude"
+        : section === "varc"
+          ? data.varc.type === "VA"
+            ? "VA of the Day"
+            : "RC of the Day"
+          : "DILR Set of the Day";
+
 
   // --------------------------------------------------
   // TIMER
   // --------------------------------------------------
 
   useEffect(() => {
-    if (!started || submitted) return;
+    if (
+      !started ||
+      submitted
+    ) {
+      return;
+    }
 
     if (seconds <= 0) {
       submitAttempt(true);
       return;
     }
 
-    const id = window.setInterval(() => {
-      setSeconds((current) =>
-        Math.max(0, current - 1)
+    const id =
+      window.setInterval(
+        () =>
+          setSeconds(
+            (s) =>
+              Math.max(
+                0,
+                s - 1
+              )
+          ),
+        1000
       );
-    }, 1000);
 
-    return () => window.clearInterval(id);
+    return () =>
+      window.clearInterval(id);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [started, submitted, seconds]);
+  }, [
+    started,
+    submitted,
+    seconds,
+  ]);
+
 
   // --------------------------------------------------
   // SUBMIT
-  // +3 CORRECT
-  // -1 WRONG
-  // 0 UNATTEMPTED
   // --------------------------------------------------
 
-  async function submitAttempt(auto = false) {
+  async function submitAttempt(
+    auto = false
+  ) {
     if (
       !user ||
       !data ||
@@ -255,35 +310,41 @@ export default function DailyQuestionPage() {
 
     setSaving(true);
 
-    const correct = questions.reduce(
-      (sum, question, index) =>
-        sum +
-        (answers[index] === question.correctOption
-          ? 1
-          : 0),
-      0
-    );
+    const correct =
+      questions.reduce(
+        (sum, q, i) =>
+          sum +
+          (answers[i] ===
+          q.correctOption
+            ? 1
+            : 0),
+        0
+      );
 
-    const attempted = Object.keys(answers).length;
+    const wrong =
+      questions.reduce(
+        (sum, q, i) =>
+          sum +
+          (
+            answers[i] &&
+            answers[i] !==
+              q.correctOption
+              ? 1
+              : 0
+          ),
+        0
+      );
 
-    const wrong = Math.max(
-      0,
-      attempted - correct
-    );
+    const total =
+      questions.length;
 
-    const unanswered = Math.max(
-      0,
-      questions.length - attempted
-    );
-
-    // CAT-style scoring:
-    // Correct = +3
-    // Wrong = -1
-    // Unattempted = 0
+    // CAT-style marking:
+    // +3 correct
+    // -1 wrong
+    // 0 unanswered
     const score =
-      correct * 3 - wrong;
-
-    const total = questions.length;
+      correct * 3 -
+      wrong;
 
     const attemptId =
       `${date}_${section}_${user.uid}`;
@@ -292,82 +353,103 @@ export default function DailyQuestionPage() {
       `${date}_${section}`;
 
     try {
-      await runTransaction(db, async (transaction) => {
-        const attemptRef = doc(
-          db,
-          "daily_attempts",
-          attemptId
-        );
+      await runTransaction(
+        db,
+        async (tx) => {
+          const attemptRef =
+            doc(
+              db,
+              "daily_attempts",
+              attemptId
+            );
 
-        const statRef = doc(
-          db,
-          "daily_section_stats",
-          statId
-        );
+          const statRef =
+            doc(
+              db,
+              "daily_section_stats",
+              statId
+            );
 
-        // All reads before writes.
-        const attemptSnap =
-          await transaction.get(attemptRef);
+          const attemptSnap =
+            await tx.get(
+              attemptRef
+            );
 
-        if (attemptSnap.exists()) {
-          return;
-        }
-
-        const statSnap =
-          await transaction.get(statRef);
-
-        const currentCount =
-          statSnap.exists()
-            ? Number(
-                statSnap.data().count || 0
-              )
-            : 0;
-
-        transaction.set(attemptRef, {
-          userId: user.uid,
-          email: user.email || "",
-          displayName:
-            user.displayName || "",
-          date,
-          section,
-
-          score,
-
-          correct,
-          wrong,
-          unanswered,
-          attempted,
-
-          total,
-
-          answers,
-
-          timeTakenSeconds:
-            15 * 60 - seconds,
-
-          timedOut: auto,
-
-          submittedAt:
-            serverTimestamp(),
-        });
-
-        transaction.set(
-          statRef,
-          {
-            date,
-            section,
-            count: currentCount + 1,
-            updatedAt:
-              serverTimestamp(),
-          },
-          {
-            merge: true,
+          if (
+            attemptSnap.exists()
+          ) {
+            return;
           }
-        );
-      });
 
-      // Reload saved attempt
-      const savedAttempt =
+          const statSnap =
+            await tx.get(
+              statRef
+            );
+
+          const currentCount =
+            statSnap.exists()
+              ? Number(
+                  statSnap.data()
+                    .count || 0
+                )
+              : 0;
+
+          tx.set(
+            attemptRef,
+            {
+              userId:
+                user.uid,
+
+              email:
+                user.email || "",
+
+              displayName:
+                user.displayName || "",
+
+              date,
+
+              section,
+
+              score,
+
+              correct,
+
+              wrong,
+
+              total,
+
+              answers,
+
+              timeTakenSeconds:
+                15 * 60 -
+                seconds,
+
+              timedOut:
+                auto,
+
+              submittedAt:
+                serverTimestamp(),
+            }
+          );
+
+          tx.set(
+            statRef,
+            {
+              date,
+              section,
+              count:
+                currentCount + 1,
+              updatedAt:
+                serverTimestamp(),
+            },
+            {
+              merge: true,
+            }
+          );
+        }
+      );
+
+      const saved =
         await getDoc(
           doc(
             db,
@@ -376,13 +458,12 @@ export default function DailyQuestionPage() {
           )
         );
 
-      if (savedAttempt.exists()) {
+      if (saved.exists()) {
         setAttempt(
-          savedAttempt.data()
+          saved.data()
         );
       }
 
-      // Reload stats
       const statSnap =
         await getDoc(
           doc(
@@ -395,32 +476,32 @@ export default function DailyQuestionPage() {
       if (statSnap.exists()) {
         setStatsCount(
           Number(
-            statSnap.data().count || 0
+            statSnap.data()
+              .count || 0
           )
         );
       }
 
       setSubmitted(true);
-      setStarted(false);
 
     } catch (error) {
-      console.error(
-        "Error saving daily attempt:",
-        error
-      );
+
+      console.error(error);
 
       alert(
         error instanceof Error
           ? error.message
           : "Could not save your score. Please try again."
       );
+
     } finally {
       setSaving(false);
     }
   }
 
+
   // --------------------------------------------------
-  // LOADING
+  // LOADING / AUTH
   // --------------------------------------------------
 
   if (authLoading) {
@@ -431,16 +512,13 @@ export default function DailyQuestionPage() {
     );
   }
 
-  // --------------------------------------------------
-  // NOT LOGGED IN
-  // --------------------------------------------------
 
   if (!user) {
     return (
       <div className="mx-auto max-w-xl px-4 py-20 text-center">
 
         <h1 className="font-display text-2xl font-bold">
-          Sign in to attempt today&apos;s practice
+          Sign in to attempt today's practice
         </h1>
 
         <Link
@@ -454,21 +532,19 @@ export default function DailyQuestionPage() {
     );
   }
 
-  // --------------------------------------------------
-  // NO DATA
-  // --------------------------------------------------
 
   if (!data) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
 
         <h1 className="font-display text-2xl font-bold">
-          Today&apos;s practice is being prepared.
+          Today's practice is being prepared.
         </h1>
 
       </div>
     );
   }
+
 
   // --------------------------------------------------
   // DISPLAY VALUES
@@ -476,49 +552,53 @@ export default function DailyQuestionPage() {
 
   const timeText =
     `${String(
-      Math.floor(seconds / 60)
-    ).padStart(2, "0")}:` +
-    `${String(
+      Math.floor(
+        seconds / 60
+      )
+    ).padStart(2, "0")}:${String(
       seconds % 60
     ).padStart(2, "0")}`;
 
   const answered =
-    Object.keys(answers).length;
+    Object.keys(
+      answers
+    ).length;
 
-  // Saved result values
-  const resultCorrect =
-    Number(attempt?.correct || 0);
 
-  const resultWrong =
-    Number(attempt?.wrong || 0);
-
-  const resultUnanswered =
-    Number(
-      attempt?.unanswered ??
-      Math.max(
-        0,
-        questions.length -
-          Number(attempt?.attempted || 0)
+  const displayScore =
+    attempt?.score ??
+    (
+      questions.reduce(
+        (sum, q, i) =>
+          sum +
+          (
+            answers[i] ===
+            q.correctOption
+              ? 3
+              : answers[i]
+                ? -1
+                : 0
+          ),
+        0
       )
     );
 
-  const resultScore =
-    Number(attempt?.score || 0);
 
   // --------------------------------------------------
-  // PAGE
+  // RENDER
   // --------------------------------------------------
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
 
-      {/* ------------------------------------------------
-          HEADER
-      ------------------------------------------------ */}
+      {/* ============================================ */}
+      {/* HEADER */}
+      {/* ============================================ */}
 
       <div className="flex flex-wrap items-start justify-between gap-4">
 
         <div>
+
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-dark">
             Daily Practice ·{" "}
             {new Date(
@@ -540,473 +620,481 @@ export default function DailyQuestionPage() {
           <p className="mt-1 text-sm text-muted">
             {questions.length} questions · one attempt per day
           </p>
+
         </div>
 
 
-        {/* ------------------------------------------------
-            TOP RIGHT RESULT / TIMER
-        ------------------------------------------------ */}
+        <div className="flex items-center gap-3">
 
-        {!submitted ? (
+          <div className="hidden items-center gap-1.5 text-xs font-semibold text-muted sm:flex">
+            <Users size={14} />
+            {statsCount} attempted
+          </div>
 
-          <div className="flex items-center gap-3">
 
-            <div className="hidden items-center gap-1.5 text-xs font-semibold text-muted sm:flex">
-              <Users size={14} />
-              {statsCount} attempted
+          <div className="rounded-xl border border-border bg-white px-4 py-2.5 text-center shadow-sm">
+
+            <div className="flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted">
+              <Clock3 size={12} />
+              Time left
             </div>
 
-            <div className="rounded-xl border border-border bg-white px-4 py-2.5 text-center shadow-sm">
-
-              <div className="flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted">
-                <Clock3 size={12} />
-                Time left
-              </div>
-
-              <div className="mt-0.5 font-mono text-xl font-extrabold tabular-nums text-brand-dark">
-                {timeText}
-              </div>
-
+            <div className="mt-0.5 font-mono text-xl font-extrabold tabular-nums text-brand-dark">
+              {timeText}
             </div>
 
           </div>
 
-        ) : (
-
-          <div className="rounded-2xl border border-brand/20 bg-white px-5 py-4 text-right shadow-sm">
-
-            <div className="flex items-center justify-end gap-2 text-xs font-bold uppercase tracking-wide text-muted">
-              <Trophy
-                size={15}
-                className="text-brand"
-              />
-              Your Score
-            </div>
-
-            <div className="mt-1 font-display text-3xl font-extrabold text-brand-dark">
-              {resultScore}
-            </div>
-
-            <div className="mt-1 text-xs text-muted">
-              out of{" "}
-              <span className="font-semibold">
-                {questions.length * 3}
-              </span>
-            </div>
-
-          </div>
-
-        )}
+        </div>
 
       </div>
 
 
-      {/* ------------------------------------------------
-          SCORE BREAKDOWN AFTER SUBMISSION
-      ------------------------------------------------ */}
+      {/* ============================================ */}
+      {/* READY CARD */}
+      {/* ============================================ */}
 
-      {submitted && (
-        <div className="mt-5 grid grid-cols-3 gap-3">
+      {!started &&
+        !submitted && (
 
-          <div className="rounded-xl border border-brand/20 bg-brand-tint p-3 text-center">
+          <div className="mt-6 rounded-2xl border border-border bg-white p-6 text-center">
 
-            <div className="text-xs font-semibold text-muted">
-              Correct
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-tint text-brand-darker">
+              <Clock3 size={22} />
             </div>
 
-            <div className="mt-1 text-lg font-bold text-brand-darker">
-              {resultCorrect}
-            </div>
-
-            <div className="text-[11px] font-semibold text-brand-darker">
-              +{resultCorrect * 3} marks
-            </div>
-
-          </div>
-
-
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center">
-
-            <div className="text-xs font-semibold text-muted">
-              Wrong
-            </div>
-
-            <div className="mt-1 text-lg font-bold text-danger">
-              {resultWrong}
-            </div>
-
-            <div className="text-[11px] font-semibold text-danger">
-              -{resultWrong} marks
-            </div>
-
-          </div>
-
-
-          <div className="rounded-xl border border-border bg-white p-3 text-center">
-
-            <div className="text-xs font-semibold text-muted">
-              Unattempted
-            </div>
-
-            <div className="mt-1 text-lg font-bold">
-              {resultUnanswered}
-            </div>
-
-            <div className="text-[11px] font-semibold text-muted">
-              0 marks
-            </div>
-
-          </div>
-
-        </div>
-      )}
-
-
-      {/* ------------------------------------------------
-          RC PASSAGE
-      ------------------------------------------------ */}
-
-      {section === "varc" &&
-        data.varc.type === "RC" && (
-          <div className="mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6">
-
-            <h2 className="font-display text-lg font-bold">
-              {data.varc.title ||
-                "Reading Comprehension"}
+            <h2 className="mt-3 font-display text-xl font-bold">
+              Ready?
             </h2>
 
-            <div className="mt-4">
-              <Content
-                media={data.varc.passage}
-                alt="RC passage"
-              />
-            </div>
+            <p className="mt-1 text-sm text-muted">
+              You have{" "}
+              <strong className="text-brand-darker">
+                15 minutes
+              </strong>{" "}
+              for this section.
+              You can leave the other sections for another time.
+            </p>
+
+            <button
+              onClick={() =>
+                setStarted(true)
+              }
+              className="mt-5 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white hover:bg-brand-dark"
+            >
+              Start{" "}
+              {sectionLabel(
+                section
+              )}{" "}
+              Test
+            </button>
 
           </div>
+
         )}
 
 
-      {/* ------------------------------------------------
-          DILR SET
-      ------------------------------------------------ */}
+      {/* ============================================ */}
+      {/* TIMER RUNNING MESSAGE */}
+      {/* ============================================ */}
 
-      {section === "dilr" && (
-        <div className="mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6">
+      {started &&
+        !submitted && (
 
-          <h2 className="font-display text-lg font-bold">
-            {data.dilr.title ||
-              "DILR Set"}
-          </h2>
+          <div className="mt-5 rounded-xl border border-brand/20 bg-brand-tint px-4 py-3 text-sm font-semibold text-brand-darker">
 
-          <div className="mt-4">
-            <Content
-              media={data.dilr.set}
-              alt="DILR set"
-            />
+            Timer is running.
+            When it reaches 00:00,
+            your answers will be submitted automatically.
+
           </div>
 
-        </div>
-      )}
+        )}
 
 
-      {/* ------------------------------------------------
-          START SCREEN
-      ------------------------------------------------ */}
+      {/* ============================================ */}
+      {/* ACTUAL TEST CONTENT */}
+      {/* ============================================ */}
 
-      {!started && !submitted && (
-        <div className="mt-6 rounded-2xl border border-border bg-white p-6 text-center">
+      {(started ||
+        submitted) && (
 
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-tint text-brand-darker">
-            <Clock3 size={22} />
-          </div>
+        <>
 
-          <h2 className="mt-3 font-display text-xl font-bold">
-            Ready?
-          </h2>
+          {/* ---------------------------------------- */}
+          {/* RC PASSAGE */}
+          {/* ---------------------------------------- */}
 
-          <p className="mt-1 text-sm text-muted">
-            You have{" "}
-            <strong className="text-brand-darker">
-              15 minutes
-            </strong>{" "}
-            for this section.
-            You can leave the other sections for another time.
-          </p>
+          {section === "varc" &&
+            data.varc.type ===
+              "RC" && (
 
-          <button
-            onClick={() =>
-              setStarted(true)
-            }
-            className="mt-5 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white hover:bg-brand-dark"
-          >
-            Start {sectionLabel(section)} Test
-          </button>
+              <div className="mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6">
 
-        </div>
-      )}
+                <h2 className="font-display text-lg font-bold">
+                  {data.varc.title ||
+                    "Reading Comprehension"}
+                </h2>
 
+                <div className="mt-4">
 
-      {/* ------------------------------------------------
-          TIMER MESSAGE
-      ------------------------------------------------ */}
+                  <Content
+                    media={
+                      data.varc
+                        .passage
+                    }
+                    alt="RC passage"
+                  />
 
-      {started && !submitted && (
-        <div className="mt-5 rounded-xl border border-brand/20 bg-brand-tint px-4 py-3 text-sm font-semibold text-brand-darker">
-          Timer is running. When it reaches 00:00,
-          your answers will be submitted automatically.
-        </div>
-      )}
+                </div>
+
+              </div>
+
+            )}
 
 
-      {/* ------------------------------------------------
-          QUESTIONS
-      ------------------------------------------------ */}
+          {/* ---------------------------------------- */}
+          {/* DILR SET */}
+          {/* ---------------------------------------- */}
 
-      {(started || submitted) && (
-        <div className="mt-5 space-y-5">
+          {section === "dilr" && (
 
-          {questions.map(
-            (question, index) => {
+            <div className="mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6">
 
-              const selected =
-                answers[index];
+              <h2 className="font-display text-lg font-bold">
+                {data.dilr.title ||
+                  "DILR Set"}
+              </h2>
 
-              const isSubmitted =
-                submitted;
+              <div className="mt-4">
 
-              const correct =
-                isSubmitted &&
-                selected ===
-                  question.correctOption;
+                <Content
+                  media={
+                    data.dilr.set
+                  }
+                  alt="DILR set"
+                />
 
-              return (
-                <div
-                  key={index}
-                  className="rounded-2xl border border-border bg-white p-5 sm:p-6"
-                >
+              </div>
 
-                  <div className="text-xs font-bold uppercase tracking-wide text-muted">
-                    Question {index + 1}
-                  </div>
+            </div>
+
+          )}
 
 
-                  {question.title && (
-                    <h3 className="mt-1 font-display text-lg font-bold">
-                      {question.title}
-                    </h3>
-                  )}
+          {/* ---------------------------------------- */}
+          {/* QUESTIONS */}
+          {/* ---------------------------------------- */}
+
+          <div className="mt-5 space-y-5">
+
+            {questions.map(
+              (q, i) => {
+
+                const selected =
+                  answers[i];
+
+                const isSubmitted =
+                  submitted;
+
+                const correct =
+                  isSubmitted &&
+                  selected ===
+                    q.correctOption;
+
+                return (
+
+                  <div
+                    key={i}
+                    className="rounded-2xl border border-border bg-white p-5 sm:p-6"
+                  >
+
+                    <div className="text-xs font-bold uppercase tracking-wide text-muted">
+                      Question {i + 1}
+                    </div>
 
 
-                  <div className="mt-4">
-                    <Content
-                      media={
-                        question.question
-                      }
-                      alt={`Question ${index + 1}`}
-                    />
-                  </div>
+                    {q.title && (
+
+                      <h3 className="mt-1 font-display text-lg font-bold">
+                        {q.title}
+                      </h3>
+
+                    )}
 
 
-                  {/* OPTIONS */}
+                    <div className="mt-4">
 
-                  <div className="mt-6 grid gap-2.5">
+                      <Content
+                        media={
+                          q.question
+                        }
+                        alt={`Question ${
+                          i + 1
+                        }`}
+                      />
 
-                    {question.options.map(
-                      (option) => {
+                    </div>
 
-                        const isCorrect =
-                          isSubmitted &&
-                          option.label ===
-                            question.correctOption;
 
-                        const isWrong =
-                          isSubmitted &&
-                          selected ===
-                            option.label &&
-                          option.label !==
-                            question.correctOption;
+                    <div className="mt-6 grid gap-2.5">
 
-                        return (
-                          <button
-                            key={option.label}
-                            disabled={
-                              !started ||
-                              submitted
-                            }
-                            onClick={() =>
-                              setAnswers(
-                                (current) => ({
-                                  ...current,
-                                  [index]:
-                                    option.label,
-                                })
-                              )
-                            }
-                            className={`rounded-xl border px-4 py-3 text-left transition ${
-                              isCorrect
-                                ? "border-brand bg-brand-tint"
-                                : isWrong
-                                  ? "border-danger/40 bg-red-50"
-                                  : selected ===
+                      {q.options.map(
+                        (option) => {
+
+                          const isCorrect =
+                            isSubmitted &&
+                            option.label ===
+                              q.correctOption;
+
+                          const isWrong =
+                            isSubmitted &&
+                            selected ===
+                              option.label &&
+                            option.label !==
+                              q.correctOption;
+
+                          return (
+
+                            <button
+                              key={
+                                option.label
+                              }
+                              disabled={
+                                !started ||
+                                submitted
+                              }
+                              onClick={() =>
+                                setAnswers(
+                                  (a) => ({
+                                    ...a,
+
+                                    [i]:
+                                      option.label,
+                                  })
+                                )
+                              }
+                              className={`rounded-xl border px-4 py-3 text-left transition ${
+                                isCorrect
+                                  ? "border-brand bg-brand-tint"
+                                  : isWrong
+                                    ? "border-danger/40 bg-red-50"
+                                    : selected ===
+                                        option.label
+                                      ? "border-brand bg-brand-tint"
+                                      : "border-border hover:border-brand/50"
+                              }`}
+                            >
+
+                              <div className="flex gap-3">
+
+                                <span className="mt-0.5 shrink-0 font-semibold">
+                                  {option.label}.
+                                </span>
+
+                                <div className="min-w-0 flex-1">
+
+                                  <Content
+                                    media={
+                                      option.content
+                                    }
+                                    alt={`Option ${
                                       option.label
-                                    ? "border-brand bg-brand-tint"
-                                    : "border-border hover:border-brand/50"
-                            }`}
-                          >
+                                    }`}
+                                  />
 
-                            <div className="flex gap-3">
+                                </div>
 
-                              <span className="mt-0.5 shrink-0 font-semibold">
-                                {option.label}.
-                              </span>
+                                {isCorrect && (
 
-                              <div className="min-w-0 flex-1">
-                                <Content
-                                  media={
-                                    option.content
-                                  }
-                                  alt={`Option ${option.label}`}
-                                />
+                                  <CheckCircle2
+                                    className="mt-0.5 shrink-0 text-brand"
+                                    size={18}
+                                  />
+
+                                )}
+
                               </div>
 
-                              {isCorrect && (
-                                <CheckCircle2
-                                  className="mt-0.5 shrink-0 text-brand"
-                                  size={18}
-                                />
-                              )}
+                            </button>
 
-                              {isWrong && (
-                                <XCircle
-                                  className="mt-0.5 shrink-0 text-danger"
-                                  size={18}
-                                />
-                              )}
+                          );
+                        }
+                      )}
 
-                            </div>
+                    </div>
 
-                          </button>
-                        );
-                      }
+
+                    {/* -------------------------------- */}
+                    {/* SOLUTION AFTER SUBMISSION */}
+                    {/* -------------------------------- */}
+
+                    {isSubmitted && (
+
+                      <div className="mt-6 rounded-2xl bg-surface-muted p-5">
+
+                        <p
+                          className={`text-sm font-bold ${
+                            correct
+                              ? "text-brand-darker"
+                              : "text-danger"
+                          }`}
+                        >
+                          {correct
+                            ? "Correct! +3 marks"
+                            : selected
+                              ? `Incorrect — -1 mark · correct answer: ${q.correctOption}`
+                              : `Unanswered · 0 marks · correct answer: ${q.correctOption}`}
+                        </p>
+
+
+                        {q.solution?.value && (
+
+                          <div className="mt-5">
+
+                            <p className="mb-2 text-xs font-semibold">
+                              Solution
+                            </p>
+
+                            <Content
+                              media={
+                                q.solution
+                              }
+                              alt="Solution"
+                            />
+
+                          </div>
+
+                        )}
+
+
+                        {q.explanation?.value && (
+
+                          <div className="mt-5 border-t border-border pt-4">
+
+                            <p className="mb-2 text-xs font-semibold">
+                              Explanation
+                            </p>
+
+                            <Content
+                              media={
+                                q.explanation
+                              }
+                              alt="Explanation"
+                            />
+
+                          </div>
+
+                        )}
+
+                      </div>
+
                     )}
 
                   </div>
 
+                );
+              }
+            )}
 
-                  {/* ------------------------------------------------
-                      SOLUTION AFTER SUBMISSION
-                  ------------------------------------------------ */}
-
-                  {isSubmitted && (
-                    <div className="mt-6 rounded-2xl bg-surface-muted p-5">
-
-                      <p
-                        className={`text-sm font-bold ${
-                          correct
-                            ? "text-brand-darker"
-                            : "text-danger"
-                        }`}
-                      >
-                        {correct
-                          ? "Correct! +3 marks"
-                          : selected
-                            ? `Incorrect — correct answer: ${question.correctOption} · -1 mark`
-                            : `Not attempted — correct answer: ${question.correctOption} · 0 marks`}
-                      </p>
+          </div>
 
 
-                      {question.solution?.value && (
-                        <div className="mt-5">
+          {/* ---------------------------------------- */}
+          {/* SUBMIT BAR */}
+          {/* ---------------------------------------- */}
 
-                          <p className="mb-2 text-xs font-semibold">
-                            Solution
-                          </p>
+          {started &&
+            !submitted && (
 
-                          <Content
-                            media={
-                              question.solution
-                            }
-                            alt="Solution"
-                          />
+              <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-4 rounded-2xl border border-border bg-white p-4 shadow-lg">
 
-                        </div>
-                      )}
+                <span className="text-sm text-muted">
+
+                  Answered{" "}
+
+                  <strong className="text-foreground">
+                    {answered}/
+                    {questions.length}
+                  </strong>
+
+                </span>
 
 
-                      {question.explanation?.value && (
-                        <div className="mt-5 border-t border-border pt-4">
+                <button
+                  disabled={saving}
+                  onClick={() =>
+                    submitAttempt(
+                      false
+                    )
+                  }
+                  className="rounded-full bg-foreground px-6 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                >
 
-                          <p className="mb-2 text-xs font-semibold">
-                            Explanation
-                          </p>
+                  {saving
+                    ? "Saving…"
+                    : "Submit Section"}
 
-                          <Content
-                            media={
-                              question.explanation
-                            }
-                            alt="Explanation"
-                          />
+                </button>
 
-                        </div>
-                      )}
+              </div>
 
-                    </div>
-                  )}
+            )}
 
-                </div>
-              );
-            }
+
+          {/* ---------------------------------------- */}
+          {/* RESULT */}
+          {/* ---------------------------------------- */}
+
+          {submitted && (
+
+            <div className="mt-6 rounded-2xl border border-brand/30 bg-brand-tint p-6 text-center">
+
+              <p className="text-xs font-bold uppercase tracking-wide text-brand-darker">
+                Section complete
+              </p>
+
+              <h2 className="mt-1 font-display text-2xl font-bold">
+                Score:{" "}
+                {displayScore}
+              </h2>
+
+              <p className="mt-1 text-sm text-muted">
+
+                {attempt?.correct ??
+                  0} correct ·{" "}
+
+                {attempt?.wrong ??
+                  0} wrong ·{" "}
+
+                {attempt?.total ??
+                  questions.length} total
+
+                {" · "}
+
+                {statsCount} people have attempted this section today.
+
+              </p>
+
+
+              <p className="mt-2 text-xs font-semibold text-muted">
+                +3 for correct · -1 for wrong · 0 for unanswered
+              </p>
+
+
+              <Link
+                href="/daily"
+                className="mt-5 inline-flex rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-white"
+              >
+                Back to Daily Practice
+              </Link>
+
+            </div>
+
           )}
 
-        </div>
-      )}
+        </>
 
-
-      {/* ------------------------------------------------
-          SUBMIT BAR
-      ------------------------------------------------ */}
-
-      {started && !submitted && (
-        <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-4 rounded-2xl border border-border bg-white p-4 shadow-lg">
-
-          <span className="text-sm text-muted">
-            Answered{" "}
-            <strong className="text-foreground">
-              {answered}/{questions.length}
-            </strong>
-          </span>
-
-          <button
-            disabled={saving}
-            onClick={() =>
-              submitAttempt(false)
-            }
-            className="rounded-full bg-foreground px-6 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-          >
-            {saving
-              ? "Saving…"
-              : "Submit Section"}
-          </button>
-
-        </div>
-      )}
-
-
-      {/* ------------------------------------------------
-          BOTTOM - NO SCORE HERE
-      ------------------------------------------------ */}
-
-      {submitted && (
-        <div className="mt-8 flex justify-center">
-
-          <Link
-            href="/daily"
-            className="inline-flex rounded-full bg-brand px-6 py-3 text-sm font-bold text-white hover:bg-brand-dark"
-          >
-            Back to Daily Practice
-          </Link>
-
-        </div>
       )}
 
     </div>
