@@ -18,11 +18,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-
-// ============================================================
-// TYPES
-// ============================================================
-
 type MediaValue = {
   type: "text" | "image";
   value: string;
@@ -61,27 +56,16 @@ type Package = {
 
 type Section = "quant" | "varc" | "dilr";
 
-
-// ============================================================
-// HELPERS
-// ============================================================
-
 const todayIST = () =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
   }).format(new Date());
-
 
 const sectionLabel = (section: Section) => {
   if (section === "quant") return "Quantitative Aptitude";
   if (section === "varc") return "VARC";
   return "DILR";
 };
-
-
-// ============================================================
-// CONTENT RENDERER
-// ============================================================
 
 function Content({
   media,
@@ -93,12 +77,7 @@ function Content({
   if (!media?.value) return null;
 
   if (media.type === "image") {
-    return (
-      <AssetImage
-        assetId={media.value}
-        alt={alt}
-      />
-    );
+    return <AssetImage assetId={media.value} alt={alt} />;
   }
 
   return (
@@ -108,307 +87,159 @@ function Content({
   );
 }
 
-
-// ============================================================
-// PAGE
-// ============================================================
-
 export default function DailyQuestionPage() {
-
-  // ----------------------------------------------------------
-  // SECTION
-  // ----------------------------------------------------------
-
   const params =
     typeof window !== "undefined"
       ? new URLSearchParams(window.location.search)
       : null;
 
-  const requestedSection = params?.get("section");
-
-  const section: Section =
-    requestedSection === "varc"
-      ? "varc"
-      : requestedSection === "dilr"
-        ? "dilr"
-        : "quant";
-
-
-  // ----------------------------------------------------------
-  // STATE
-  // ----------------------------------------------------------
+  const section = (params?.get("section") || "quant") as Section;
 
   const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
-  const [authLoading, setAuthLoading] =
-    useState(true);
+  const [data, setData] = useState<Package | null>(null);
+  const [attempt, setAttempt] = useState<any>(null);
 
-  const [data, setData] =
-    useState<Package | null>(null);
+  const [answers, setAnswers] = useState<Record<number, string>>({});
 
-  const [attempt, setAttempt] =
-    useState<any>(null);
+  const [seconds, setSeconds] = useState(15 * 60);
 
-  const [answers, setAnswers] =
-    useState<Record<number, string>>({});
+  const [started, setStarted] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
-  const [seconds, setSeconds] =
-    useState(15 * 60);
+  const [saving, setSaving] = useState(false);
+  const [statsCount, setStatsCount] = useState(0);
 
-  const [started, setStarted] =
-    useState(false);
+  const date = useMemo(todayIST, []);
 
-  const [submitted, setSubmitted] =
-    useState(false);
-
-  const [saving, setSaving] =
-    useState(false);
-
-  const [statsCount, setStatsCount] =
-    useState(0);
-
-  const [loadingData, setLoadingData] =
-    useState(true);
-
-
-  const date = useMemo(
-    todayIST,
-    []
-  );
-
-
-  // ==========================================================
+  // --------------------------------------------------
   // AUTH
-  // ==========================================================
+  // --------------------------------------------------
 
   useEffect(() => {
-    return onAuthStateChanged(
-      auth,
-      (currentUser) => {
-        setUser(currentUser);
-        setAuthLoading(false);
-      }
-    );
+    return onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setAuthLoading(false);
+    });
   }, []);
 
 
-  // ==========================================================
-  // LOAD DAILY DATA
-  // ==========================================================
+  // --------------------------------------------------
+  // LOAD DAILY CONTENT / ATTEMPT / STATS
+  // --------------------------------------------------
 
   useEffect(() => {
     if (!user) return;
 
-    let cancelled = false;
-
-    async function loadData() {
+    (async () => {
       try {
-        setLoadingData(true);
-
-        // ----------------------------------------------------
-        // Daily package
-        // ----------------------------------------------------
-
         const packageSnap = await getDoc(
           doc(db, "daily_packages", date)
         );
 
-        if (!cancelled) {
-          if (
-            packageSnap.exists() &&
-            packageSnap.data().published !== false
-          ) {
-            setData(
-              packageSnap.data() as Package
-            );
-          } else {
-            setData(null);
-          }
+        if (
+          packageSnap.exists() &&
+          packageSnap.data().published !== false
+        ) {
+          setData(packageSnap.data() as Package);
         }
 
-
-        // ----------------------------------------------------
-        // Existing attempt
-        // ----------------------------------------------------
-
-        const attemptId =
-          `${date}_${section}_${user.uid}`;
-
-        const attemptSnap = await getDoc(
-          doc(
-            db,
-            "daily_attempts",
-            attemptId
-          )
+        const attemptRef = doc(
+          db,
+          "daily_attempts",
+          `${date}_${section}_${user.uid}`
         );
 
-        if (!cancelled && attemptSnap.exists()) {
-          const attemptData =
-            attemptSnap.data();
+        const attemptSnap = await getDoc(attemptRef);
 
-          setAttempt(attemptData);
+        if (attemptSnap.exists()) {
+          const savedAttempt = attemptSnap.data();
+
+          setAttempt(savedAttempt);
           setSubmitted(true);
-          setStarted(false);
 
-          // Restore saved answers when available.
-          if (
-            attemptData.answers &&
-            typeof attemptData.answers === "object"
-          ) {
-            setAnswers(
-              attemptData.answers
-            );
+          if (savedAttempt.answers) {
+            setAnswers(savedAttempt.answers);
           }
         }
-
-
-        // ----------------------------------------------------
-        // Section statistics
-        // ----------------------------------------------------
-
-        const statId =
-          `${date}_${section}`;
 
         const statSnap = await getDoc(
           doc(
             db,
             "daily_section_stats",
-            statId
+            `${date}_${section}`
           )
         );
 
-        if (!cancelled) {
-          if (statSnap.exists()) {
-            setStatsCount(
-              Number(
-                statSnap.data().count || 0
-              )
-            );
-          } else {
-            setStatsCount(0);
-          }
+        if (statSnap.exists()) {
+          setStatsCount(
+            Number(statSnap.data().count || 0)
+          );
         }
-
       } catch (error) {
-        console.error(
-          "Error loading daily practice:",
-          error
-        );
-      } finally {
-        if (!cancelled) {
-          setLoadingData(false);
-        }
+        console.error("Error loading daily practice:", error);
       }
-    }
-
-    loadData();
-
-    return () => {
-      cancelled = true;
-    };
-
-  }, [
-    user,
-    date,
-    section,
-  ]);
+    })();
+  }, [user, date, section]);
 
 
-  // ==========================================================
+  // --------------------------------------------------
   // QUESTIONS
-  // ==========================================================
+  // --------------------------------------------------
 
-  const questions: MCQ[] =
-    !data
-      ? []
-      : section === "quant"
-        ? data.quant || []
-        : section === "varc"
-          ? data.varc?.questions || []
-          : data.dilr?.questions || [];
+  const questions = !data
+    ? []
+    : section === "quant"
+      ? data.quant
+      : section === "varc"
+        ? data.varc.questions
+        : data.dilr.questions;
 
 
-  // ==========================================================
+  // --------------------------------------------------
   // TITLE
-  // ==========================================================
+  // --------------------------------------------------
 
-  const title =
-    !data
-      ? sectionLabel(section)
-      : section === "quant"
-        ? "Quantitative Aptitude"
-        : section === "varc"
-          ? (
-            data.varc?.type === "VA"
-              ? "VA of the Day"
-              : "RC of the Day"
-          )
-          : "DILR Set of the Day";
+  const title = !data
+    ? sectionLabel(section)
+    : section === "quant"
+      ? "Quantitative Aptitude"
+      : section === "varc"
+        ? data.varc.type === "VA"
+          ? "VA of the Day"
+          : "RC of the Day"
+        : "DILR Set of the Day";
 
 
-  // ==========================================================
+  // --------------------------------------------------
   // TIMER
-  // ==========================================================
+  // --------------------------------------------------
 
   useEffect(() => {
-
-    if (!started || submitted) {
-      return;
-    }
+    if (!started || submitted) return;
 
     if (seconds <= 0) {
       submitAttempt(true);
       return;
     }
 
-    const timerId =
-      window.setInterval(() => {
+    const id = window.setInterval(() => {
+      setSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
 
-        setSeconds(
-          (current) =>
-            Math.max(
-              0,
-              current - 1
-            )
-        );
-
-      }, 1000);
-
-    return () =>
-      window.clearInterval(timerId);
+    return () => window.clearInterval(id);
 
     // submitAttempt intentionally omitted.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    started,
-    submitted,
-    seconds,
-  ]);
+  }, [started, submitted, seconds]);
 
 
-  // ==========================================================
-  // START TEST
-  // ==========================================================
+  // --------------------------------------------------
+  // SUBMIT
+  // --------------------------------------------------
 
-  function startTest() {
-
-    if (submitted) return;
-
-    // Always start with a fresh 15 minutes.
-    setSeconds(15 * 60);
-
-    setStarted(true);
-  }
-
-
-  // ==========================================================
-  // SUBMIT TEST
-  // ==========================================================
-
-  async function submitAttempt(
-    auto = false
-  ) {
-
+  async function submitAttempt(auto = false) {
     if (
       !user ||
       !data ||
@@ -420,38 +251,18 @@ export default function DailyQuestionPage() {
 
     setSaving(true);
 
-    // --------------------------------------------------------
-    // Calculate score
-    // --------------------------------------------------------
+    const correct = questions.reduce(
+      (sum, question, index) =>
+        sum +
+        (answers[index] === question.correctOption
+          ? 1
+          : 0),
+      0
+    );
 
-    const correct =
-      questions.reduce(
-        (sum, question, index) => {
+    const total = questions.length;
 
-          return (
-            sum +
-            (
-              answers[index] ===
-              question.correctOption
-                ? 1
-                : 0
-            )
-          );
-
-        },
-        0
-      );
-
-    const total =
-      questions.length;
-
-    const score =
-      correct;
-
-
-    // --------------------------------------------------------
-    // IDs
-    // --------------------------------------------------------
+    const score = correct;
 
     const attemptId =
       `${date}_${section}_${user.uid}`;
@@ -459,157 +270,69 @@ export default function DailyQuestionPage() {
     const statId =
       `${date}_${section}`;
 
-
     try {
+      await runTransaction(db, async (transaction) => {
+        const attemptRef = doc(
+          db,
+          "daily_attempts",
+          attemptId
+        );
 
-      await runTransaction(
-        db,
-        async (transaction) => {
+        const statRef = doc(
+          db,
+          "daily_section_stats",
+          statId
+        );
 
-          // --------------------------------------------------
-          // References
-          // --------------------------------------------------
+        // IMPORTANT:
+        // All reads happen before writes.
+        const attemptSnap =
+          await transaction.get(attemptRef);
 
-          const attemptRef =
-            doc(
-              db,
-              "daily_attempts",
-              attemptId
-            );
-
-          const statRef =
-            doc(
-              db,
-              "daily_section_stats",
-              statId
-            );
-
-
-          // --------------------------------------------------
-          // READS MUST HAPPEN BEFORE WRITES
-          // --------------------------------------------------
-
-          const existingAttempt =
-            await transaction.get(
-              attemptRef
-            );
-
-          const existingStats =
-            await transaction.get(
-              statRef
-            );
-
-
-          // --------------------------------------------------
-          // Already submitted?
-          // --------------------------------------------------
-
-          if (
-            existingAttempt.exists()
-          ) {
-            return;
-          }
-
-
-          // --------------------------------------------------
-          // Current attempt count
-          // --------------------------------------------------
-
-          const currentCount =
-            existingStats.exists()
-              ? Number(
-                existingStats.data()
-                  .count || 0
-              )
-              : 0;
-
-
-          // --------------------------------------------------
-          // Save attempt
-          // --------------------------------------------------
-
-          transaction.set(
-            attemptRef,
-            {
-              userId: user.uid,
-
-              email:
-                user.email || "",
-
-              displayName:
-                user.displayName || "",
-
-              date,
-
-              section,
-
-              score,
-
-              correct,
-
-              total,
-
-              answers,
-
-              timeTakenSeconds:
-                Math.max(
-                  0,
-                  (15 * 60) -
-                  seconds
-                ),
-
-              timedOut: auto,
-
-              submittedAt:
-                serverTimestamp(),
-            }
-          );
-
-
-          // --------------------------------------------------
-          // Update attempt count
-          // --------------------------------------------------
-
-          if (
-            existingStats.exists()
-          ) {
-
-            transaction.update(
-              statRef,
-              {
-                count:
-                  currentCount + 1,
-
-                updatedAt:
-                  serverTimestamp(),
-              }
-            );
-
-          } else {
-
-            transaction.set(
-              statRef,
-              {
-                date,
-
-                section,
-
-                count: 1,
-
-                updatedAt:
-                  serverTimestamp(),
-              }
-            );
-          }
-
+        if (attemptSnap.exists()) {
+          return;
         }
-      );
+
+        const statSnap =
+          await transaction.get(statRef);
+
+        const currentCount =
+          statSnap.exists()
+            ? Number(statSnap.data().count || 0)
+            : 0;
+
+        transaction.set(attemptRef, {
+          userId: user.uid,
+          email: user.email || "",
+          displayName: user.displayName || "",
+          date,
+          section,
+          score,
+          correct,
+          total,
+          answers,
+          timeTakenSeconds:
+            15 * 60 - seconds,
+          timedOut: auto,
+          submittedAt: serverTimestamp(),
+        });
+
+        transaction.set(
+          statRef,
+          {
+            date,
+            section,
+            count: currentCount + 1,
+            updatedAt: serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+      });
 
 
-      // ======================================================
-      // READ SAVED RESULT
-      // ======================================================
-
+      // Reload saved attempt
       const savedAttempt =
         await getDoc(
           doc(
@@ -619,20 +342,13 @@ export default function DailyQuestionPage() {
           )
         );
 
-      if (
-        savedAttempt.exists()
-      ) {
-        setAttempt(
-          savedAttempt.data()
-        );
+      if (savedAttempt.exists()) {
+        setAttempt(savedAttempt.data());
       }
 
 
-      // ======================================================
-      // READ UPDATED COUNT
-      // ======================================================
-
-      const savedStats =
+      // Reload stats
+      const statSnap =
         await getDoc(
           doc(
             db,
@@ -641,29 +357,20 @@ export default function DailyQuestionPage() {
           )
         );
 
-      if (
-        savedStats.exists()
-      ) {
+      if (statSnap.exists()) {
         setStatsCount(
           Number(
-            savedStats.data()
-              .count || 0
+            statSnap.data().count || 0
           )
         );
       }
-
-
-      // ======================================================
-      // FINISH
-      // ======================================================
 
       setSubmitted(true);
       setStarted(false);
 
     } catch (error) {
-
       console.error(
-        "DAILY SUBMISSION ERROR:",
+        "Error saving daily attempt:",
         error
       );
 
@@ -672,24 +379,20 @@ export default function DailyQuestionPage() {
           ? error.message
           : "Could not save your score. Please try again."
       );
-
     } finally {
-
       setSaving(false);
     }
   }
 
 
-  // ==========================================================
-  // LOADING STATES
-  // ==========================================================
+  // --------------------------------------------------
+  // LOADING / AUTH
+  // --------------------------------------------------
 
   if (authLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2
-          className="animate-spin text-brand"
-        />
+        <Loader2 className="animate-spin text-brand" />
       </div>
     );
   }
@@ -698,7 +401,6 @@ export default function DailyQuestionPage() {
   if (!user) {
     return (
       <div className="mx-auto max-w-xl px-4 py-20 text-center">
-
         <h1 className="font-display text-2xl font-bold">
           Sign in to attempt today&apos;s practice
         </h1>
@@ -709,18 +411,6 @@ export default function DailyQuestionPage() {
         >
           Continue with Google
         </Link>
-
-      </div>
-    );
-  }
-
-
-  if (loadingData) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2
-          className="animate-spin text-brand"
-        />
       </div>
     );
   }
@@ -729,78 +419,51 @@ export default function DailyQuestionPage() {
   if (!data) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
-
         <h1 className="font-display text-2xl font-bold">
           Today&apos;s practice is being prepared.
         </h1>
-
-        <p className="mt-2 text-sm text-muted">
-          Please check back shortly.
-        </p>
-
-        <Link
-          href="/daily"
-          className="mt-6 inline-flex rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white"
-        >
-          Back to Daily Practice
-        </Link>
-
       </div>
     );
   }
 
 
-  // ==========================================================
+  // --------------------------------------------------
   // DISPLAY VALUES
-  // ==========================================================
+  // --------------------------------------------------
 
   const timeText =
-    `${String(
-      Math.floor(seconds / 60)
-    ).padStart(2, "0")}:${String(
-      seconds % 60
-    ).padStart(2, "0")}`;
-
+    `${String(Math.floor(seconds / 60)).padStart(2, "0")}:` +
+    `${String(seconds % 60).padStart(2, "0")}`;
 
   const answered =
     Object.keys(answers).length;
-
 
   const displayScore =
     attempt?.score ??
     questions.reduce(
       (sum, question, index) =>
         sum +
-        (
-          answers[index] ===
-          question.correctOption
-            ? 1
-            : 0
-        ),
+        (answers[index] === question.correctOption
+          ? 1
+          : 0),
       0
     );
 
 
-  // ==========================================================
-  // RENDER
-  // ==========================================================
+  // --------------------------------------------------
+  // PAGE
+  // --------------------------------------------------
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
 
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
+      {/* HEADER */}
       <div className="flex flex-wrap items-start justify-between gap-4">
 
         <div>
-
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-dark">
             Daily Practice ·{" "}
-            {new Date(
-              `${date}T12:00:00`
-            ).toLocaleDateString(
+            {new Date(`${date}T12:00:00`).toLocaleDateString(
               "en-IN",
               {
                 day: "numeric",
@@ -817,39 +480,26 @@ export default function DailyQuestionPage() {
           <p className="mt-1 text-sm text-muted">
             {questions.length} questions · one attempt per day
           </p>
-
         </div>
 
 
         <div className="flex items-center gap-3">
 
-          {/* Attempt count */}
-
           <div className="hidden items-center gap-1.5 text-xs font-semibold text-muted sm:flex">
-
             <Users size={14} />
-
             {statsCount} attempted
-
           </div>
 
-
-          {/* Timer */}
 
           <div className="rounded-xl border border-border bg-white px-4 py-2.5 text-center shadow-sm">
 
             <div className="flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted">
-
               <Clock3 size={12} />
-
               Time left
-
             </div>
 
             <div className="mt-0.5 font-mono text-xl font-extrabold tabular-nums text-brand-dark">
-
               {timeText}
-
             </div>
 
           </div>
@@ -859,432 +509,315 @@ export default function DailyQuestionPage() {
       </div>
 
 
-      {/* =====================================================
-          RC / DILR MATERIAL
-          Hidden until test starts
-      ===================================================== */}
+      {/* RC PASSAGE */}
+      {section === "varc" &&
+        data.varc.type === "RC" && (
+          <div className="mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6">
 
-      {(started || submitted) && (
-        <>
+            <h2 className="font-display text-lg font-bold">
+              {data.varc.title ||
+                "Reading Comprehension"}
+            </h2>
 
-          {/* RC passage */}
-
-          {section === "varc" &&
-            data.varc.type === "RC" && (
-
-              <div className="mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6">
-
-                <h2 className="font-display text-lg font-bold">
-                  {data.varc.title ||
-                    "Reading Comprehension"}
-                </h2>
-
-                <div className="mt-4">
-
-                  <Content
-                    media={data.varc.passage}
-                    alt="RC passage"
-                  />
-
-                </div>
-
-              </div>
-            )}
-
-
-          {/* DILR set */}
-
-          {section === "dilr" && (
-
-            <div className="mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6">
-
-              <h2 className="font-display text-lg font-bold">
-                {data.dilr.title ||
-                  "DILR Set"}
-              </h2>
-
-              <div className="mt-4">
-
-                <Content
-                  media={data.dilr.set}
-                  alt="DILR set"
-                />
-
-              </div>
-
+            <div className="mt-4">
+              <Content
+                media={data.varc.passage}
+                alt="RC passage"
+              />
             </div>
-          )}
 
-        </>
+          </div>
+        )}
+
+
+      {/* DILR SET */}
+      {section === "dilr" && (
+        <div className="mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6">
+
+          <h2 className="font-display text-lg font-bold">
+            {data.dilr.title || "DILR Set"}
+          </h2>
+
+          <div className="mt-4">
+            <Content
+              media={data.dilr.set}
+              alt="DILR set"
+            />
+          </div>
+
+        </div>
       )}
 
 
-      {/* =====================================================
-          START SCREEN
-      ===================================================== */}
+      {/* START SCREEN */}
+      {!started && !submitted && (
+        <div className="mt-6 rounded-2xl border border-border bg-white p-6 text-center">
 
-      {!started &&
-        !submitted && (
-
-          <div className="mt-6 rounded-2xl border border-border bg-white p-6 text-center">
-
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-tint text-brand-darker">
-
-              <Clock3 size={22} />
-
-            </div>
-
-
-            <h2 className="mt-3 font-display text-xl font-bold">
-              Ready?
-            </h2>
-
-
-            <p className="mt-1 text-sm text-muted">
-
-              You have{" "}
-
-              <strong className="text-brand-darker">
-                15 minutes
-              </strong>
-
-              {" "}for this section.
-
-              You can leave the other sections
-              for another time.
-
-            </p>
-
-
-            <button
-              onClick={startTest}
-              className="mt-5 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white hover:bg-brand-dark"
-            >
-              Start {sectionLabel(section)} Test
-            </button>
-
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-tint text-brand-darker">
+            <Clock3 size={22} />
           </div>
-        )}
+
+          <h2 className="mt-3 font-display text-xl font-bold">
+            Ready?
+          </h2>
+
+          <p className="mt-1 text-sm text-muted">
+            You have{" "}
+            <strong className="text-brand-darker">
+              15 minutes
+            </strong>{" "}
+            for this section.
+            You can leave the other sections for another time.
+          </p>
+
+          <button
+            onClick={() => setStarted(true)}
+            className="mt-5 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white hover:bg-brand-dark"
+          >
+            Start {sectionLabel(section)} Test
+          </button>
+
+        </div>
+      )}
 
 
-      {/* =====================================================
-          TIMER RUNNING MESSAGE
-      ===================================================== */}
-
-      {started &&
-        !submitted && (
-
-          <div className="mt-5 rounded-xl border border-brand/20 bg-brand-tint px-4 py-3 text-sm font-semibold text-brand-darker">
-
-            Timer is running.
-
-            {" "}When it reaches 00:00,
-            your answers will be submitted automatically.
-
-          </div>
-        )}
+      {/* TIMER MESSAGE */}
+      {started && !submitted && (
+        <div className="mt-5 rounded-xl border border-brand/20 bg-brand-tint px-4 py-3 text-sm font-semibold text-brand-darker">
+          Timer is running. When it reaches 00:00,
+          your answers will be submitted automatically.
+        </div>
+      )}
 
 
-      {/* =====================================================
-          QUESTIONS
+      {/* QUESTIONS
           IMPORTANT:
-          Hidden before Start
-      ===================================================== */}
-
+          Questions are now shown ONLY after Start
+          or after submission.
+      */}
       {(started || submitted) && (
-
         <div className="mt-5 space-y-5">
 
-          {questions.map(
-            (question, index) => {
+          {questions.map((question, index) => {
 
-              const selected =
-                answers[index];
+            const selected =
+              answers[index];
 
-              const isSubmitted =
-                submitted;
+            const isSubmitted =
+              submitted;
 
-              const correct =
-                isSubmitted &&
-                selected ===
-                  question.correctOption;
+            const correct =
+              isSubmitted &&
+              selected === question.correctOption;
 
+            return (
+              <div
+                key={index}
+                className="rounded-2xl border border-border bg-white p-5 sm:p-6"
+              >
 
-              return (
-
-                <div
-                  key={index}
-                  className="rounded-2xl border border-border bg-white p-5 sm:p-6"
-                >
-
-                  {/* Question number */}
-
-                  <div className="text-xs font-bold uppercase tracking-wide text-muted">
-
-                    Question {index + 1}
-
-                  </div>
+                <div className="text-xs font-bold uppercase tracking-wide text-muted">
+                  Question {index + 1}
+                </div>
 
 
-                  {/* Optional title */}
-
-                  {question.title && (
-
-                    <h3 className="mt-1 font-display text-lg font-bold">
-
-                      {question.title}
-
-                    </h3>
-
-                  )}
+                {question.title && (
+                  <h3 className="mt-1 font-display text-lg font-bold">
+                    {question.title}
+                  </h3>
+                )}
 
 
-                  {/* Question */}
-
-                  <div className="mt-4">
-
-                    <Content
-                      media={question.question}
-                      alt={`Question ${index + 1}`}
-                    />
-
-                  </div>
+                <div className="mt-4">
+                  <Content
+                    media={question.question}
+                    alt={`Question ${index + 1}`}
+                  />
+                </div>
 
 
-                  {/* Options */}
+                <div className="mt-6 grid gap-2.5">
 
-                  <div className="mt-6 grid gap-2.5">
+                  {question.options.map(
+                    (option) => {
 
-                    {question.options.map(
-                      (option) => {
+                      const isCorrect =
+                        isSubmitted &&
+                        option.label ===
+                          question.correctOption;
 
-                        const isCorrect =
-                          isSubmitted &&
-                          option.label ===
-                            question.correctOption;
+                      const isWrong =
+                        isSubmitted &&
+                        selected ===
+                          option.label &&
+                        option.label !==
+                          question.correctOption;
 
-                        const isWrong =
-                          isSubmitted &&
-                          selected ===
-                            option.label &&
-                          option.label !==
-                            question.correctOption;
+                      return (
+                        <button
+                          key={option.label}
+                          disabled={
+                            !started ||
+                            submitted
+                          }
+                          onClick={() =>
+                            setAnswers(
+                              (current) => ({
+                                ...current,
+                                [index]:
+                                  option.label,
+                              })
+                            )
+                          }
+                          className={`rounded-xl border px-4 py-3 text-left transition ${
+                            isCorrect
+                              ? "border-brand bg-brand-tint"
+                              : isWrong
+                                ? "border-danger/40 bg-red-50"
+                                : selected ===
+                                    option.label
+                                  ? "border-brand bg-brand-tint"
+                                  : "border-border hover:border-brand/50"
+                          }`}
+                        >
 
+                          <div className="flex gap-3">
 
-                        return (
+                            <span className="mt-0.5 shrink-0 font-semibold">
+                              {option.label}.
+                            </span>
 
-                          <button
-                            key={option.label}
-                            type="button"
-                            disabled={
-                              !started ||
-                              submitted
-                            }
-                            onClick={() =>
-                              setAnswers(
-                                (current) => ({
-                                  ...current,
-                                  [index]:
-                                    option.label,
-                                })
-                              )
-                            }
-                            className={`rounded-xl border px-4 py-3 text-left transition ${
-                              isCorrect
-                                ? "border-brand bg-brand-tint"
-                                : isWrong
-                                  ? "border-danger/40 bg-red-50"
-                                  : selected === option.label
-                                    ? "border-brand bg-brand-tint"
-                                    : "border-border hover:border-brand/50"
-                            }`}
-                          >
-
-                            <div className="flex gap-3">
-
-                              <span className="mt-0.5 shrink-0 font-semibold">
-                                {option.label}.
-                              </span>
-
-
-                              <div className="min-w-0 flex-1">
-
-                                <Content
-                                  media={option.content}
-                                  alt={`Option ${option.label}`}
-                                />
-
-                              </div>
-
-
-                              {isCorrect && (
-
-                                <CheckCircle2
-                                  className="mt-0.5 shrink-0 text-brand"
-                                  size={18}
-                                />
-
-                              )}
-
+                            <div className="min-w-0 flex-1">
+                              <Content
+                                media={
+                                  option.content
+                                }
+                                alt={`Option ${option.label}`}
+                              />
                             </div>
 
-                          </button>
+                            {isCorrect && (
+                              <CheckCircle2
+                                className="mt-0.5 shrink-0 text-brand"
+                                size={18}
+                              />
+                            )}
 
-                        );
-                      }
+                          </div>
+
+                        </button>
+                      );
+                    }
+                  )}
+
+                </div>
+
+
+                {/* SOLUTION */}
+                {isSubmitted && (
+                  <div className="mt-6 rounded-2xl bg-surface-muted p-5">
+
+                    <p
+                      className={`text-sm font-bold ${
+                        correct
+                          ? "text-brand-darker"
+                          : "text-danger"
+                      }`}
+                    >
+                      {correct
+                        ? "Correct!"
+                        : `Incorrect — correct answer: ${question.correctOption}`}
+                    </p>
+
+
+                    {question.solution?.value && (
+                      <div className="mt-5">
+
+                        <p className="mb-2 text-xs font-semibold">
+                          Solution
+                        </p>
+
+                        <Content
+                          media={question.solution}
+                          alt="Solution"
+                        />
+
+                      </div>
+                    )}
+
+
+                    {question.explanation?.value && (
+                      <div className="mt-5 border-t border-border pt-4">
+
+                        <p className="mb-2 text-xs font-semibold">
+                          Explanation
+                        </p>
+
+                        <Content
+                          media={
+                            question.explanation
+                          }
+                          alt="Explanation"
+                        />
+
+                      </div>
                     )}
 
                   </div>
+                )}
 
-
-                  {/* =================================================
-                      SOLUTION AFTER SUBMISSION
-                  ================================================= */}
-
-                  {isSubmitted && (
-
-                    <div className="mt-6 rounded-2xl bg-surface-muted p-5">
-
-                      <p
-                        className={`text-sm font-bold ${
-                          correct
-                            ? "text-brand-darker"
-                            : "text-danger"
-                        }`}
-                      >
-
-                        {correct
-                          ? "Correct!"
-                          : `Incorrect — correct answer: ${question.correctOption}`}
-
-                      </p>
-
-
-                      {question.solution?.value && (
-
-                        <div className="mt-5">
-
-                          <p className="mb-2 text-xs font-semibold">
-                            Solution
-                          </p>
-
-                          <Content
-                            media={question.solution}
-                            alt="Solution"
-                          />
-
-                        </div>
-
-                      )}
-
-
-                      {question.explanation?.value && (
-
-                        <div className="mt-5 border-t border-border pt-4">
-
-                          <p className="mb-2 text-xs font-semibold">
-                            Explanation
-                          </p>
-
-                          <Content
-                            media={
-                              question.explanation
-                            }
-                            alt="Explanation"
-                          />
-
-                        </div>
-
-                      )}
-
-                    </div>
-
-                  )}
-
-                </div>
-
-              );
-            }
-          )}
+              </div>
+            );
+          })}
 
         </div>
-
       )}
 
 
-      {/* =====================================================
-          SUBMIT BAR
-      ===================================================== */}
+      {/* SUBMIT BAR */}
+      {started && !submitted && (
+        <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-4 rounded-2xl border border-border bg-white p-4 shadow-lg">
 
-      {started &&
-        !submitted && (
+          <span className="text-sm text-muted">
+            Answered{" "}
+            <strong className="text-foreground">
+              {answered}/{questions.length}
+            </strong>
+          </span>
 
-          <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-4 rounded-2xl border border-border bg-white p-4 shadow-lg">
+          <button
+            disabled={saving}
+            onClick={() =>
+              submitAttempt(false)
+            }
+            className="rounded-full bg-foreground px-6 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {saving
+              ? "Saving…"
+              : "Submit Section"}
+          </button>
 
-            <span className="text-sm text-muted">
-
-              Answered{" "}
-
-              <strong className="text-foreground">
-                {answered}/{questions.length}
-              </strong>
-
-            </span>
-
-
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() =>
-                submitAttempt(false)
-              }
-              className="rounded-full bg-foreground px-6 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-            >
-
-              {saving
-                ? "Saving…"
-                : "Submit Section"}
-
-            </button>
-
-          </div>
-        )}
+        </div>
+      )}
 
 
-      {/* =====================================================
-          RESULT
-      ===================================================== */}
-
+      {/* RESULT */}
       {submitted && (
-
         <div className="mt-6 rounded-2xl border border-brand/30 bg-brand-tint p-6 text-center">
 
           <p className="text-xs font-bold uppercase tracking-wide text-brand-darker">
             Section complete
           </p>
 
-
           <h2 className="mt-1 font-display text-2xl font-bold">
-
             Score: {displayScore}/{questions.length}
-
           </h2>
 
-
           <p className="mt-1 text-sm text-muted">
-
             {attempt?.correct ??
-              displayScore}
-
-            {" "}correct ·{" "}
-
-            {statsCount}
-
-            {" "}people have attempted
-            this section today.
-
+              displayScore}{" "}
+            correct · {statsCount} people have attempted this section today.
           </p>
-
 
           <Link
             href="/daily"
@@ -1294,7 +827,6 @@ export default function DailyQuestionPage() {
           </Link>
 
         </div>
-
       )}
 
     </div>
