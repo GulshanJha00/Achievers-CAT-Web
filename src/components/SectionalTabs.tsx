@@ -65,7 +65,7 @@ export default function SectionalTabs() {
 
       <div className="mt-6 flex gap-2 overflow-x-auto rounded-full border border-border bg-surface-muted p-1">
         {sections.map((s) => (
-          <button key={s} onClick={() => router.replace(`/sectional?section=${s}`)} className={`flex-1 whitespace-nowrap rounded-full px-4 py-2 text-[13.5px] font-semibold transition ${active === s ? "bg-white text-brand-darker shadow-sm" : "text-muted hover:text-foreground"}`}>
+          <button key={s} onClick={() => router.replace(`/sectional?section=${s}`)} className={`flex-1 cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-[13.5px] font-semibold transition ${active === s ? "bg-white text-brand-darker shadow-sm" : "text-muted hover:text-foreground"}`}>
             {s}
           </button>
         ))}
