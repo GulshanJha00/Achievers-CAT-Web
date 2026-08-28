@@ -260,7 +260,7 @@ export default function Header() {
             /* LOGGED OUT */
             <Link
               href="/login"
-              className="rounded-full bg-brand px-4 py-2 text-[14px] font-semibold text-white shadow-sm shadow-brand/30 transition hover:bg-brand-dark"
+              className="rounded-full cursor-pointer bg-brand px-4 py-2 text-[14px] font-semibold text-white shadow-sm shadow-brand/30 transition hover:bg-brand-dark"
             >
               Log in
             </Link>
@@ -268,7 +268,7 @@ export default function Header() {
             /* LOGGED IN */
             <>
             <div className="relative" ref={notificationRef}>
-              <button type="button" onClick={() => setNotificationsOpen((value) => !value)} className="relative rounded-full border border-border bg-white p-2 text-foreground transition hover:border-brand" aria-label="Open notifications">
+              <button type="button" onClick={() => setNotificationsOpen((value) => !value)} className="relative cursor-pointer rounded-full border border-border bg-white p-2 text-foreground transition hover:border-brand" aria-label="Open notifications">
                 <Bell size={17} />
                 {notifications.some((notification) => !readNotifications.includes(notification.id)) && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-brand" />}
               </button>
@@ -281,7 +281,7 @@ export default function Header() {
               <button
                 type="button"
                 onClick={() => setAccountOpen((value) => !value)}
-                className="flex items-center gap-2 rounded-full border border-border bg-white py-1 pl-1 pr-3 transition hover:border-brand"
+                className="flex items-center cursor-pointer gap-2 rounded-full border border-border bg-white py-1 pl-1 pr-3 transition hover:border-brand"
                 aria-label="Open account menu"
               >
                 {user.photoURL ? (
