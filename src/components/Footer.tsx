@@ -42,8 +42,8 @@ export default function Footer() {
             <div>
               <p className="text-[12px] truncate font-semibold uppercase tracking-wide text-muted">Social Media</p>
               <ul className="flex gap-5 mt-3 space-y-2 text-[13.5px]">
-                <li><Link href="/login" className="text-foreground/80 hover:text-brand-darker"><FaGithub size={20}/></Link></li>
-                <li><Link href="/admin" className="text-foreground/80 hover:text-brand-darker"><FaWhatsapp size={20}/></Link></li>
+                <li><Link target="_blank" href="https://github.com/praneeth256/Achievers-CAT-Web/" className="text-foreground/80 hover:text-brand-darker"><FaGithub size={20}/></Link></li>
+                <li><Link target="_blank" href="https://chat.whatsapp.com/L59MZiqz4ueKOSEyZ06TxD" className="text-foreground/80 hover:text-brand-darker"><FaWhatsapp size={20}/></Link></li>
               </ul>
             </div>
           </div>
