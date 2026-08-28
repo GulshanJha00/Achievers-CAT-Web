@@ -14,6 +14,9 @@ import {
   LogIn,
   Target,
   Download,
+  ExternalLink,
+  FileText,
+  LockKeyhole,
   Trophy,
   Loader2,
   Users,
@@ -23,7 +26,11 @@ import {
   collection,
   doc,
   getDocs,
+  limit,
   onSnapshot,
+  orderBy,
+  query,
+  where,
   writeBatch,
 } from "firebase/firestore";
 
@@ -103,6 +110,8 @@ type LeaderboardState = {
   total: number;
 };
 type StreakEntry = { userId: string; displayName?: string; email?: string; currentStreak: number };
+type DailyRead = { id: string; title: string; url: string; kind?: "pdf" | "link" };
+type PreviousDailyTarget = { id: string; date?: string; quant?: unknown[]; varc?: { type?: string; questions?: unknown[] }; dilr?: { questions?: unknown[] } };
 
 const todayIST = () =>
   new Intl.DateTimeFormat("en-CA", {
@@ -146,6 +155,19 @@ function formatScore(score: number) {
   return score > 0 ? `+${score}` : `${score}`;
 }
 
+function formatTargetDate(date?: string) {
+  if (!date) return "Previous daily target";
+  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }).format(new Date(`${date}T00:00:00+05:30`));
+}
+
+function daysUntilCat() {
+  const now = new Date();
+  const examYear = now.getFullYear();
+  const exam = new Date(examYear, 10, 29);
+  if (now > exam) exam.setFullYear(examYear + 1);
+  return Math.max(0, Math.ceil((exam.getTime() - now.getTime()) / 86_400_000));
+}
+
 export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -170,8 +192,11 @@ export default function Home() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [streakLeaders, setStreakLeaders] = useState<StreakEntry[]>([]);
   const [publicProfileNames, setPublicProfileNames] = useState<Record<string, string>>({});
+  const [dailyReads, setDailyReads] = useState<DailyRead[]>([]);
+  const [previousTargets, setPreviousTargets] = useState<PreviousDailyTarget[]>([]);
 
   const date = useMemo(() => todayIST(), []);
+  const catDaysRemaining = useMemo(() => daysUntilCat(), []);
 
   /*
    * --------------------------------------------------
@@ -223,6 +248,23 @@ export default function Home() {
       }
     );
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    return onSnapshot(
+      query(collection(db, "daily_reads"), where("published", "==", true), orderBy("createdAt", "desc"), limit(6)),
+      (snapshot) => setDailyReads(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as DailyRead)),
+      (error) => console.error("Could not load Daily Reads:", error)
+    );
+  }, [user]);
+
+  useEffect(() => {
+    return onSnapshot(
+      query(collection(db, "daily_packages"), where("published", "==", true), orderBy("date", "desc"), limit(6)),
+      (snapshot) => setPreviousTargets(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as PreviousDailyTarget)),
+      (error) => console.error("Could not load previous daily targets:", error)
+    );
+  }, []);
 
   // Older streak documents predate the public display-name fields. When an
   // admin visits Home, safely backfill those labels from the private profiles
@@ -459,6 +501,9 @@ export default function Home() {
           </a>
         </div>
       </div>
+      <div className="border-b border-border bg-white py-2 text-center text-xs font-bold text-brand-darker">
+        <span className="inline-flex items-center gap-1.5"><Target size={14} /> CAT Exam (29 November) is in {catDaysRemaining} days</span>
+      </div>
       {/* --------------------------------------------------
           HERO
       -------------------------------------------------- */}
@@ -677,6 +722,26 @@ export default function Home() {
               <div className="mt-4 border-t border-border pt-4"><div className="flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-wide text-brand-dark">Top 5 streaks</p><Flame size={14} className="text-flame" /></div>{rankedStreakLeaders.length ? <div className="mt-2 space-y-1.5">{rankedStreakLeaders.map((entry, index) => <div key={entry.userId} className="flex items-center justify-between text-xs"><span className="truncate text-muted">#{index + 1} {displayStreakName(entry)}</span><span className="font-bold text-brand-darker">{entry.currentStreak} days</span></div>)}</div> : <p className="mt-2 text-xs text-muted">Start today to lead the streak board.</p>}</div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="grid gap-6 lg:grid-cols-[1.45fr_0.85fr]">
+          <div className="rounded-2xl border border-border bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-brand-dark">Keep practising</p>
+                <h2 className="mt-1 font-display text-xl font-bold">Previous Daily Targets</h2>
+              </div>
+              <Link href="/daily" className="text-sm font-semibold text-brand-darker hover:underline">Today&apos;s target</Link>
+            </div>
+            {previousTargets.filter((target) => (target.date || target.id) !== date).length ? <div className="mt-5 divide-y divide-border">{previousTargets.filter((target) => (target.date || target.id) !== date).map((target) => <div key={target.id} className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0 last:pb-0"><div><p className="font-display text-[15px] font-semibold">Daily Target · {formatTargetDate(target.date || target.id)}</p><p className="mt-1 text-xs text-muted">{target.quant?.length || 0} Quant · {target.varc?.questions?.length || 0} {target.varc?.type === "VA" ? "VA" : "RC"} · {target.dilr?.questions?.length || 0} DILR questions</p></div><span className="rounded-full bg-brand-tint px-2.5 py-1 text-xs font-bold text-brand-darker">Completed set</span></div>)}</div> : <p className="mt-5 text-sm text-muted">Earlier published daily targets will appear here.</p>}
+          </div>
+
+          <aside className="rounded-2xl border border-border bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex items-center gap-2"><span className="rounded-xl bg-brand-tint p-2 text-brand-darker"><FileText size={19} /></span><div><p className="font-display text-lg font-bold">Daily Reads</p><p className="text-xs text-muted">Newspaper PDFs and essays</p></div></div>
+            {!user ? <Link href="/login?returnTo=%2F" className="mt-5 flex items-center justify-between rounded-xl border border-brand/20 bg-brand-tint p-4 transition hover:bg-brand/10"><div><p className="font-semibold text-brand-darker">Log in to access Daily Reads</p><p className="mt-1 text-xs text-muted">Curated reading for CAT preparation.</p></div><LockKeyhole size={19} className="shrink-0 text-brand-darker" /></Link> : dailyReads.length ? <div className="mt-5 space-y-3">{dailyReads.map((read) => <a key={read.id} href={read.url} target="_blank" rel="noreferrer" className="group flex items-center justify-between gap-3 rounded-xl border border-border p-3 transition hover:border-brand hover:bg-brand-tint"><div className="flex min-w-0 items-center gap-3"><span className="rounded-lg bg-surface-muted p-2 text-brand-darker"><FileText size={16} /></span><p className="truncate text-sm font-semibold">{read.title}</p></div><ExternalLink size={15} className="shrink-0 text-brand-darker" /></a>)}</div> : <p className="mt-5 rounded-xl bg-surface-muted p-4 text-sm text-muted">Today&apos;s reading will be published shortly.</p>}
+          </aside>
         </div>
       </section>
 

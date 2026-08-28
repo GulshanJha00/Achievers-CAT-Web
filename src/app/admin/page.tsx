@@ -12,6 +12,7 @@ const stats = [
 
 const sections = [
   { title: "Daily Practice", desc: "Create and edit Question of the Day with text/image questions, options and solutions.", href: "/admin/daily" },
+  { title: "Daily Reads", desc: "Publish a newspaper PDF or a clickable essay link for signed-in students.", href: "/admin/daily-reads" },
   { title: "Sectional Mocks", desc: "Upload, edit, publish or delete VARC, DILR and QA HTML mocks.", href: "/admin/mocks?type=sectional" },
   { title: "Full Mocks", desc: "Upload, edit, publish or delete your full CAT HTML mocks.", href: "/admin/mocks?type=full" },
   { title: "Materials", desc: "Upload materials by CAT section and topic.", href: "/admin/materials" },

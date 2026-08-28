@@ -150,6 +150,11 @@ service cloud.firestore {
         if isAdmin();
     }
 
+    match /daily_reads/{readId} {
+      allow read: if signedIn() && resource.data.published == true || isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
 
     match /daily_questions/{id} {
 
