@@ -30,8 +30,9 @@ service cloud.firestore {
 
     match /profiles/{uid} {
 
-      allow read:
-        if isOwner(uid) || isAdmin();
+      // Display names power the public streak leaderboard. The profile
+      // document remains the source of truth for existing student labels.
+      allow read: if true;
 
       allow create:
         if isOwner(uid)

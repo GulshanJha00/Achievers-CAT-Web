@@ -169,6 +169,7 @@ export default function Home() {
 
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [streakLeaders, setStreakLeaders] = useState<StreakEntry[]>([]);
+  const [publicProfileNames, setPublicProfileNames] = useState<Record<string, string>>({});
 
   const date = useMemo(() => todayIST(), []);
 
@@ -411,6 +412,15 @@ export default function Home() {
     setStreakLeaders(entries.slice(0, 5));
   }, (error) => console.error("Could not load streak leaderboard:", error)), []);
 
+  useEffect(() => onSnapshot(collection(db, "profiles"), (snapshot) => {
+    const names: Record<string, string> = {};
+    snapshot.docs.forEach((profile) => {
+      const data = profile.data();
+      names[profile.id] = String(data.name || data.displayName || "").trim();
+    });
+    setPublicProfileNames(names);
+  }, (error) => console.error("Could not load public leaderboard names:", error)), []);
+
   /*
    * --------------------------------------------------
    * TARGET
@@ -422,6 +432,8 @@ export default function Home() {
   ).length;
 
   const targetPercentage = Math.round((completedCount / 3) * 100);
+  const displayStreakName = (entry: StreakEntry) => entry.displayName?.trim() || publicProfileNames[entry.userId] || entry.email?.split("@")[0] || "Student";
+  const rankedStreakLeaders = [...streakLeaders].sort((a, b) => b.currentStreak - a.currentStreak || displayStreakName(a).localeCompare(displayStreakName(b)));
 
   /*
    * --------------------------------------------------
@@ -662,7 +674,7 @@ export default function Home() {
                   ? "View Today's Practice"
                   : "Complete Today's Target"}
               </Link>
-              <div className="mt-4 border-t border-border pt-4"><div className="flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-wide text-brand-dark">Top 5 streaks</p><Flame size={14} className="text-flame" /></div>{streakLeaders.length ? <div className="mt-2 space-y-1.5">{streakLeaders.map((entry, index) => <div key={entry.userId} className="flex items-center justify-between text-xs"><span className="truncate text-muted">#{index + 1} {getDisplayName(entry)}</span><span className="font-bold text-brand-darker">{entry.currentStreak} days</span></div>)}</div> : <p className="mt-2 text-xs text-muted">Start today to lead the streak board.</p>}</div>
+              <div className="mt-4 border-t border-border pt-4"><div className="flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-wide text-brand-dark">Top 5 streaks</p><Flame size={14} className="text-flame" /></div>{rankedStreakLeaders.length ? <div className="mt-2 space-y-1.5">{rankedStreakLeaders.map((entry, index) => <div key={entry.userId} className="flex items-center justify-between text-xs"><span className="truncate text-muted">#{index + 1} {displayStreakName(entry)}</span><span className="font-bold text-brand-darker">{entry.currentStreak} days</span></div>)}</div> : <p className="mt-2 text-xs text-muted">Start today to lead the streak board.</p>}</div>
             </div>
           </div>
         </div>
