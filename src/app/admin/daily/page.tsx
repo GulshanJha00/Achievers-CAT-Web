@@ -11,6 +11,7 @@ import { showToast } from "@/components/Toast";
 import Link from "next/link";
 import {
   ArrowLeft,
+  ClipboardPaste,
   Loader2,
   Plus,
   Save,
@@ -140,6 +141,14 @@ function emptyPackage(date: string): DailyPackage {
 function normalizeMedia(
   value: unknown
 ): MediaValue {
+
+  if (typeof value === "string") {
+    return {
+      type: "text",
+      value,
+    };
+  }
+
   if (
     !value ||
     typeof value !== "object"
@@ -163,6 +172,27 @@ function normalizeMedia(
 }
 
 
+function decodeNumericHtmlEntities(
+  value: string
+) {
+  return value.replace(
+    /&#(?:x([0-9a-f]+)|(\d+));/gi,
+    (match, hexadecimal, decimal) => {
+      const codePoint = Number.parseInt(
+        hexadecimal || decimal,
+        hexadecimal ? 16 : 10
+      );
+
+      return Number.isInteger(codePoint) &&
+        codePoint >= 0 &&
+        codePoint <= 0x10ffff
+        ? String.fromCodePoint(codePoint)
+        : match;
+    }
+  );
+}
+
+
 // --------------------------------------------------
 // NORMALIZE MCQ
 // --------------------------------------------------
@@ -180,7 +210,8 @@ function normalizeMCQ(value: any): MCQ {
         label,
 
         content: normalizeMedia(
-          value?.options?.[i]?.content
+          value?.options?.[i]?.content ??
+          value?.options?.[i]
         ),
       })
     ),
@@ -401,6 +432,102 @@ function DailyEditor() {
 
   const [message, setMessage] =
     useState("");
+
+  const [bulkImportOpen, setBulkImportOpen] =
+    useState(false);
+
+  const [bulkImportText, setBulkImportText] =
+    useState("");
+
+
+  // --------------------------------------------------
+  // BULK IMPORT
+  // --------------------------------------------------
+
+  function importQuestions() {
+
+    try {
+
+      const imported = JSON.parse(
+        decodeNumericHtmlEntities(
+          bulkImportText
+        )
+      );
+
+      if (
+        !imported ||
+        typeof imported !== "object" ||
+        (!Array.isArray(imported.quant) &&
+          !imported.varc &&
+          !imported.dilr)
+      ) {
+        throw new Error(
+          "Add at least one of: quant, varc, or dilr."
+        );
+      }
+
+      const questionGroups = [
+        {
+          name: "Quant",
+          questions: imported.quant,
+        },
+        {
+          name: "VARC",
+          questions: imported.varc?.questions,
+        },
+        {
+          name: "DILR",
+          questions: imported.dilr?.questions,
+        },
+      ];
+
+      for (const group of questionGroups) {
+
+        if (!Array.isArray(group.questions)) continue;
+
+        for (const [index, question] of group.questions.entries()) {
+
+          if (
+            Array.isArray(question?.options) &&
+            question.options.length > labels.length
+          ) {
+            throw new Error(
+              `${group.name} question ${index + 1} has ${question.options.length} options. This editor supports four options (A–D).`
+            );
+          }
+
+          if (
+            question?.correctOption &&
+            !labels.includes(question.correctOption)
+          ) {
+            throw new Error(
+              `${group.name} question ${index + 1} uses an unsupported correct option (${question.correctOption}). Use A, B, C, or D.`
+            );
+          }
+        }
+      }
+
+      setData(
+        normalizePackage(
+          date,
+          imported
+        )
+      );
+
+      setBulkImportOpen(false);
+      setBulkImportText("");
+      setMessage("");
+      showToast("Questions imported. Review, then save.");
+
+    } catch (error) {
+
+      setMessage(
+        error instanceof Error
+          ? `Could not import: ${error.message}`
+          : "Could not import these questions."
+      );
+    }
+  }
 
 
   // --------------------------------------------------
@@ -1214,6 +1341,25 @@ function DailyEditor() {
         <div className="flex items-center gap-2">
 
           <button
+            type="button"
+            disabled={
+              saving ||
+              loading
+            }
+            onClick={() => {
+              setMessage("");
+              setBulkImportOpen(true);
+            }}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2.5 text-[14px] font-semibold text-brand-darker shadow-sm hover:bg-brand-tint disabled:opacity-50"
+          >
+
+            <ClipboardPaste size={16} />
+
+            Paste all questions
+
+          </button>
+
+          <button
             disabled={
               saving ||
               loading
@@ -1240,6 +1386,94 @@ function DailyEditor() {
         </div>
 
       </div>
+
+
+      {bulkImportOpen && (
+
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bulk-import-title"
+            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-6"
+          >
+
+            <div className="flex items-start justify-between gap-4">
+
+              <div>
+
+                <h2
+                  id="bulk-import-title"
+                  className="text-lg font-bold"
+                >
+                  Paste all questions at once
+                </h2>
+
+                <p className="mt-1 text-sm text-muted">
+                  Paste a complete JSON package. Plain text is supported for
+                  questions, options, passages, solutions, and explanations.
+                </p>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setBulkImportOpen(false)}
+                className="rounded-lg px-2 py-1 text-sm font-semibold text-muted hover:bg-surface-muted"
+                aria-label="Close bulk import"
+              >
+                Close
+              </button>
+
+            </div>
+
+            <pre className="mt-4 overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-100">{`{
+  "quant": [{ "question": "2 + 2 = ?", "options": ["3", "4", "5", "6"], "correctOption": "B", "solution": "2 + 2 = 4" }],
+  "varc": { "type": "RC", "title": "Reading passage", "passage": "Paste passage here", "questions": [{ "question": "Main idea?", "options": ["A", "B", "C", "D"], "correctOption": "A" }] },
+  "dilr": { "title": "Set title", "set": "Paste set details here", "questions": [{ "question": "Question", "options": ["A", "B", "C", "D"], "correctOption": "C" }] }
+}`}</pre>
+
+            <p className="mt-3 text-xs text-muted">
+              The editor fills the required slots automatically: 5 Quant, 4 RC
+              (or 5 VA), and 5 DILR questions. Missing slots stay blank.
+            </p>
+
+            <textarea
+              value={bulkImportText}
+              onChange={(event) => setBulkImportText(event.target.value)}
+              placeholder="Paste your JSON package here"
+              className="mt-4 min-h-64 w-full rounded-xl border border-border p-3 font-mono text-xs outline-none focus:border-brand"
+              spellCheck={false}
+            />
+
+            <div className="mt-4 flex justify-end gap-3">
+
+              <button
+                type="button"
+                onClick={() => setBulkImportOpen(false)}
+                className="rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-surface-muted"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={importQuestions}
+                disabled={!bulkImportText.trim()}
+                className="inline-flex items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ClipboardPaste size={15} />
+                Import questions
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
 
 
       {/* DATE */}
