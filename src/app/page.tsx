@@ -111,7 +111,6 @@ type LeaderboardState = {
 };
 type StreakEntry = { userId: string; displayName?: string; email?: string; currentStreak: number };
 type DailyRead = { id: string; title: string; url: string; kind?: "pdf" | "link" };
-type PreviousDailyTarget = { id: string; date?: string; quant?: unknown[]; varc?: { type?: string; questions?: unknown[] }; dilr?: { questions?: unknown[] } };
 
 const todayIST = () =>
   new Intl.DateTimeFormat("en-CA", {
@@ -155,11 +154,6 @@ function formatScore(score: number) {
   return score > 0 ? `+${score}` : `${score}`;
 }
 
-function formatTargetDate(date?: string) {
-  if (!date) return "Previous daily target";
-  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }).format(new Date(`${date}T00:00:00+05:30`));
-}
-
 function daysUntilCat() {
   const now = new Date();
   const examYear = now.getFullYear();
@@ -193,10 +187,10 @@ export default function Home() {
   const [streakLeaders, setStreakLeaders] = useState<StreakEntry[]>([]);
   const [publicProfileNames, setPublicProfileNames] = useState<Record<string, string>>({});
   const [dailyReads, setDailyReads] = useState<DailyRead[]>([]);
-  const [previousTargets, setPreviousTargets] = useState<PreviousDailyTarget[]>([]);
 
   const date = useMemo(() => todayIST(), []);
   const catDaysRemaining = useMemo(() => daysUntilCat(), []);
+  const catProgress = useMemo(() => Math.min(100, Math.max(0, Math.round(((365 - catDaysRemaining) / 365) * 100))), [catDaysRemaining]);
 
   /*
    * --------------------------------------------------
@@ -257,14 +251,6 @@ export default function Home() {
       (error) => console.error("Could not load Daily Reads:", error)
     );
   }, [user]);
-
-  useEffect(() => {
-    return onSnapshot(
-      query(collection(db, "daily_packages"), where("published", "==", true), orderBy("date", "desc"), limit(6)),
-      (snapshot) => setPreviousTargets(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as PreviousDailyTarget)),
-      (error) => console.error("Could not load previous daily targets:", error)
-    );
-  }, []);
 
   // Older streak documents predate the public display-name fields. When an
   // admin visits Home, safely backfill those labels from the private profiles
@@ -501,8 +487,11 @@ export default function Home() {
           </a>
         </div>
       </div>
-      <div className="border-b border-border bg-white py-2 text-center text-xs font-bold text-brand-darker">
-        <span className="inline-flex items-center gap-1.5"><Target size={14} /> CAT Exam (29 November) is in {catDaysRemaining} days</span>
+      <div className="border-b border-brand/20 bg-gradient-to-r from-brand-tint via-white to-brand-tint px-4 py-4">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-2 text-center sm:flex-row sm:text-left">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand text-white shadow-lg shadow-brand/25"><Target size={21} /></span>
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline justify-center gap-x-2 sm:justify-between"><p className="font-display text-lg font-bold text-foreground">CAT 2026 Countdown</p><p className="font-display text-xl font-bold text-brand-darker"><span className="text-2xl">{catDaysRemaining}</span> days left</p></div><p className="mt-0.5 text-xs font-medium text-muted">CAT exam day · 29 November — make today&apos;s practice count.</p><div className="mt-2 h-2.5 overflow-hidden rounded-full bg-brand/10"><div className="h-full rounded-full bg-gradient-to-r from-brand to-emerald-400 transition-all" style={{ width: `${catProgress}%` }} /></div></div>
+        </div>
       </div>
       {/* --------------------------------------------------
           HERO
@@ -726,23 +715,10 @@ export default function Home() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1.45fr_0.85fr]">
-          <div className="rounded-2xl border border-border bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-brand-dark">Keep practising</p>
-                <h2 className="mt-1 font-display text-xl font-bold">Previous Daily Targets</h2>
-              </div>
-              <Link href="/daily" className="text-sm font-semibold text-brand-darker hover:underline">Today&apos;s target</Link>
-            </div>
-            {previousTargets.filter((target) => (target.date || target.id) !== date).length ? <div className="mt-5 divide-y divide-border">{previousTargets.filter((target) => (target.date || target.id) !== date).map((target) => <div key={target.id} className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0 last:pb-0"><div><p className="font-display text-[15px] font-semibold">Daily Target · {formatTargetDate(target.date || target.id)}</p><p className="mt-1 text-xs text-muted">{target.quant?.length || 0} Quant · {target.varc?.questions?.length || 0} {target.varc?.type === "VA" ? "VA" : "RC"} · {target.dilr?.questions?.length || 0} DILR questions</p></div><span className="rounded-full bg-brand-tint px-2.5 py-1 text-xs font-bold text-brand-darker">Completed set</span></div>)}</div> : <p className="mt-5 text-sm text-muted">Earlier published daily targets will appear here.</p>}
-          </div>
-
-          <aside className="rounded-2xl border border-border bg-white p-5 shadow-sm sm:p-6">
+        <aside className="mx-auto max-w-2xl rounded-2xl border border-border bg-white p-5 shadow-sm sm:p-6">
             <div className="flex items-center gap-2"><span className="rounded-xl bg-brand-tint p-2 text-brand-darker"><FileText size={19} /></span><div><p className="font-display text-lg font-bold">Daily Reads</p><p className="text-xs text-muted">Newspaper PDFs and essays</p></div></div>
             {!user ? <Link href="/login?returnTo=%2F" className="mt-5 flex items-center justify-between rounded-xl border border-brand/20 bg-brand-tint p-4 transition hover:bg-brand/10"><div><p className="font-semibold text-brand-darker">Log in to access Daily Reads</p><p className="mt-1 text-xs text-muted">Curated reading for CAT preparation.</p></div><LockKeyhole size={19} className="shrink-0 text-brand-darker" /></Link> : dailyReads.length ? <div className="mt-5 space-y-3">{dailyReads.map((read) => <a key={read.id} href={read.url} target="_blank" rel="noreferrer" className="group flex items-center justify-between gap-3 rounded-xl border border-border p-3 transition hover:border-brand hover:bg-brand-tint"><div className="flex min-w-0 items-center gap-3"><span className="rounded-lg bg-surface-muted p-2 text-brand-darker"><FileText size={16} /></span><p className="truncate text-sm font-semibold">{read.title}</p></div><ExternalLink size={15} className="shrink-0 text-brand-darker" /></a>)}</div> : <p className="mt-5 rounded-xl bg-surface-muted p-4 text-sm text-muted">Today&apos;s reading will be published shortly.</p>}
-          </aside>
-        </div>
+        </aside>
       </section>
 
       {/* --------------------------------------------------

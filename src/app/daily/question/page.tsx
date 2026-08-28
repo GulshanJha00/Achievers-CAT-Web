@@ -155,7 +155,11 @@ function DailyQuestionContent() {
   const [currentQuestion, setCurrentQuestion] =
     useState(0);
 
-  const date = useMemo(() => todayIST(), []);
+  const requestedDate = searchParams.get("date");
+  const date = useMemo(
+    () => /^\d{4}-\d{2}-\d{2}$/.test(requestedDate || "") ? requestedDate! : todayIST(),
+    [requestedDate]
+  );
 
   /*
    * When the user changes Daily Practice section from the Header,
@@ -173,7 +177,7 @@ function DailyQuestionContent() {
     setSaving(false);
     setStatsCount(0);
     setCurrentQuestion(0);
-  }, [section]);
+  }, [section, date]);
 
   /*
    * --------------------------------------------------
@@ -444,6 +448,8 @@ function DailyQuestionContent() {
       user.uid
     );
 
+    const updateStreak = date === todayIST();
+
     try {
       await runTransaction(
         db,
@@ -488,10 +494,9 @@ function DailyQuestionContent() {
               statRef
             );
 
-          const streakSnap =
-            await transaction.get(
-              streakRef
-            );
+          const streakSnap = updateStreak
+            ? await transaction.get(streakRef)
+            : null;
 
           const currentCount =
             statSnap.exists()
@@ -582,6 +587,7 @@ function DailyQuestionContent() {
            * increases the streak only once. Any one completed section
            * is enough to keep the streak alive.
            */
+          if (streakSnap) {
           const previousStreak = streakSnap.exists()
             ? Number(streakSnap.data().currentStreak || 0)
             : 0;
@@ -624,6 +630,7 @@ function DailyQuestionContent() {
               },
               { merge: true }
             );
+          }
           }
         }
       );
