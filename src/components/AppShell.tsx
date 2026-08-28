@@ -30,7 +30,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return <>
     <Header />
-    <main className="flex-1">{showBack && <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8"><button onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted transition hover:text-brand-darker"><ArrowLeft size={16} /> Back</button></div>}{children}</main>
+    <main className="flex-1">{showBack && <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8"><button onClick={() => router.back()} className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-muted transition hover:text-brand-darker"><ArrowLeft size={16} /> Back</button></div>}{children}</main>
     <Footer />
     <Toast />
   </>;
