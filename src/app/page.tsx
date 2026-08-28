@@ -456,7 +456,6 @@ export default function Home() {
               >
                 Attempt a Mock
               </Link>
-              <div className="mt-4 border-t border-border pt-4"><div className="flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-wide text-brand-dark">Top 5 streaks</p><Flame size={14} className="text-flame" /></div>{streakLeaders.length ? <div className="mt-2 space-y-1.5">{streakLeaders.map((entry, index) => <div key={entry.userId} className="flex items-center justify-between text-xs"><span className="truncate text-muted">#{index + 1} {getDisplayName(entry)}</span><span className="font-bold text-brand-darker">{entry.currentStreak} days</span></div>)}</div> : <p className="mt-2 text-xs text-muted">Start today to lead the streak board.</p>}</div>
             </div>
           </div>
 
@@ -629,6 +628,7 @@ export default function Home() {
                   ? "View Today's Practice"
                   : "Complete Today's Target"}
               </Link>
+              <div className="mt-4 border-t border-border pt-4"><div className="flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-wide text-brand-dark">Top 5 streaks</p><Flame size={14} className="text-flame" /></div>{streakLeaders.length ? <div className="mt-2 space-y-1.5">{streakLeaders.map((entry, index) => <div key={entry.userId} className="flex items-center justify-between text-xs"><span className="truncate text-muted">#{index + 1} {getDisplayName(entry)}</span><span className="font-bold text-brand-darker">{entry.currentStreak} days</span></div>)}</div> : <p className="mt-2 text-xs text-muted">Start today to lead the streak board.</p>}</div>
             </div>
           </div>
         </div>
