@@ -589,6 +589,18 @@ function DailyQuestionContent() {
             ? String(streakSnap.data().lastActivityDate || "")
             : "";
 
+          // Keep the public leaderboard label current even when a student
+          // completes another section on the same calendar day.
+          transaction.set(
+            streakRef,
+            {
+              userId: user.uid,
+              displayName: user.displayName || "Student",
+              email: user.email || "",
+            },
+            { merge: true }
+          );
+
           if (lastActivityDate !== date) {
             const newStreak =
               lastActivityDate === yesterdayIST(date)
