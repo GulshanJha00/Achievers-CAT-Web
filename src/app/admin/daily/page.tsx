@@ -7,6 +7,7 @@ import AdminGuard from "@/components/AdminGuard";
 import MediaInput from "@/components/MediaInput";
 import type { MediaValue } from "@/lib/firebase/media";
 import { uploadQuestionImage } from "@/lib/firebase/media";
+import { showToast } from "@/components/Toast";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -739,6 +740,7 @@ function DailyEditor() {
       setMessage(
         `Daily Practice package saved successfully. ${data.varc.type} contains ${requiredVarc} questions.`
       );
+      showToast(data.published ? "Daily practice published" : "Changes saved");
 
     } catch (error) {
 

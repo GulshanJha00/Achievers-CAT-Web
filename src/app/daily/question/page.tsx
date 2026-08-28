@@ -603,6 +603,8 @@ function DailyQuestionContent() {
               streakRef,
               {
                 userId: user.uid,
+                displayName: user.displayName || "Student",
+                email: user.email || "",
                 currentStreak: newStreak,
                 longestStreak: Math.max(previousLongest, newStreak),
                 lastActivityDate: date,

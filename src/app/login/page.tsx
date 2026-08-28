@@ -1,13 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithGoogle } from "@/lib/firebase/auth";
 import Logo from "@/components/Logo";
 import { Loader2 } from "lucide-react";
+import { showToast } from "@/components/Toast";
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   async function handleGoogleSignIn() {
     setLoading(true);
@@ -18,21 +22,27 @@ export default function LoginPage() {
 
       // Create/update the student's profile document in Firestore.
       // The Firebase security rules restrict profile writes to the signed-in user.
-      const { doc, serverTimestamp, setDoc } = await import("firebase/firestore");
+      const { doc, getDoc, serverTimestamp, setDoc } = await import("firebase/firestore");
       const { db } = await import("@/lib/firebase/client");
+      const profileRef = doc(db, "profiles", user.uid);
+      const existingProfile = await getDoc(profileRef);
       await setDoc(
-        doc(db, "profiles", user.uid),
+        profileRef,
         {
           id: user.uid,
           name: user.displayName ?? "",
           email: user.email ?? "",
           avatarUrl: user.photoURL ?? "",
           lastLoginAt: serverTimestamp(),
+          ...(existingProfile.exists() ? {} : { createdAt: serverTimestamp() }),
         },
         { merge: true }
       );
 
-      window.location.href = "/daily";
+      const returnTo = searchParams.get("returnTo");
+      const destination = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/daily";
+      showToast("Login successful");
+      router.replace(destination);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-in failed.");
       setLoading(false);

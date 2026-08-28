@@ -11,9 +11,11 @@ import {
   LogOut,
   BarChart3,
   ShieldCheck,
+  Bell,
+  CheckCheck,
 } from "lucide-react";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { collection, doc, onSnapshot } from "firebase/firestore";
 import Logo from "./Logo";
 import { auth, db } from "@/lib/firebase/client";
 import { getProfile } from "@/lib/firebase/profile";
@@ -80,8 +82,12 @@ export default function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [streak, setStreak] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<{ id: string; text: string; createdAt?: { toMillis?: () => number } }[]>([]);
+  const [readNotifications, setReadNotifications] = useState<string[]>([]);
 
   const accountRef = useRef<HTMLDivElement>(null);
+  const notificationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
@@ -129,13 +135,30 @@ export default function Header() {
   }, [user]);
 
   useEffect(() => {
+    if (!user) return;
+    const readKey = `achievers-read-notifications-${user.uid}`;
+    const welcomeId = `welcome-${user.uid}`;
+    const saved = JSON.parse(localStorage.getItem(readKey) || "[]") as string[];
+    return onSnapshot(collection(db, "notifications"), (snapshot) => {
+      setReadNotifications(saved);
+      const items: { id: string; text: string; createdAt?: { toMillis?: () => number } }[] = snapshot.docs.map((item) => ({ id: item.id, text: String(item.data().text || ""), createdAt: item.data().createdAt }));
+      if (!localStorage.getItem(welcomeId)) {
+        items.push({ id: welcomeId, text: "Welcome to Achievers CAT. Hope your journey is smooth and highly productive!" });
+        localStorage.setItem(welcomeId, "true");
+      }
+      items.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      setNotifications(items);
+    });
+  }, [user]);
+
+  useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
       if (
-        accountRef.current &&
-        !accountRef.current.contains(event.target as Node)
+        accountRef.current && !accountRef.current.contains(event.target as Node)
       ) {
         setAccountOpen(false);
       }
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) setNotificationsOpen(false);
     };
 
     document.addEventListener("mousedown", onPointerDown);
@@ -144,6 +167,13 @@ export default function Header() {
       document.removeEventListener("mousedown", onPointerDown);
     };
   }, []);
+
+  function markAllNotificationsRead() {
+    if (!user) return;
+    const ids = notifications.map((notification) => notification.id);
+    setReadNotifications(ids);
+    localStorage.setItem(`achievers-read-notifications-${user.uid}`, JSON.stringify(ids));
+  }
 
   async function logout() {
     await signOutUser();
@@ -218,14 +248,13 @@ export default function Header() {
         {/* DESKTOP ACCOUNT AREA */}
         <div className="hidden items-center gap-3 lg:flex">
 
-          {/* LIVE STREAK */}
-          <div
+          {user && <div
             className="flex items-center gap-1 rounded-full bg-brand-tint px-2.5 py-1 text-[13px] font-semibold text-brand-darker"
-            title={user ? "Your current daily practice streak" : "Log in to see your streak"}
+            title="Your current daily practice streak"
           >
             <Flame size={14} className="text-flame" />
             {streak}
-          </div>
+          </div>}
 
           {!user ? (
             /* LOGGED OUT */
@@ -237,10 +266,18 @@ export default function Header() {
             </Link>
           ) : (
             /* LOGGED IN */
-            <div
-              className="relative"
-              ref={accountRef}
-            >
+            <>
+            <div className="relative" ref={notificationRef}>
+              <button type="button" onClick={() => setNotificationsOpen((value) => !value)} className="relative rounded-full border border-border bg-white p-2 text-foreground transition hover:border-brand" aria-label="Open notifications">
+                <Bell size={17} />
+                {notifications.some((notification) => !readNotifications.includes(notification.id)) && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-brand" />}
+              </button>
+              {notificationsOpen && <div className="absolute right-0 top-full mt-2 w-80 rounded-2xl border border-border bg-white p-3 shadow-xl shadow-black/10">
+                <div className="flex items-center justify-between gap-3"><p className="font-display text-sm font-semibold">Notifications</p><button onClick={markAllNotificationsRead} className="inline-flex items-center gap-1 text-xs font-semibold text-brand-darker"><CheckCheck size={14} />Mark all read</button></div>
+                {notifications.length ? <div className="mt-3 max-h-72 space-y-2 overflow-y-auto thin-scroll">{notifications.map((notification) => <div key={notification.id} className={`rounded-xl px-3 py-2.5 text-sm ${readNotifications.includes(notification.id) ? "bg-surface-muted text-muted" : "bg-brand-tint text-foreground"}`}>{notification.text}</div>)}</div> : <p className="py-6 text-center text-sm text-muted">No new notifications.</p>}
+              </div>}
+            </div>
+            <div className="relative" ref={accountRef}>
               <button
                 type="button"
                 onClick={() => setAccountOpen((value) => !value)}
@@ -323,7 +360,7 @@ export default function Header() {
                   </button>
                 </div>
               )}
-            </div>
+            </div></>
           )}
         </div>
 

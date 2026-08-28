@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase/client";
 import AdminGuard from "@/components/AdminGuard";
 import Link from "next/link";
 import { ArrowLeft, FileUp, Pencil, Trash2, Loader2, ExternalLink } from "lucide-react";
+import { showToast } from "@/components/Toast";
 
 type Mock = {
   id: string;
@@ -141,6 +142,7 @@ function MockManager() {
       }
 
       setMessage("Mock saved successfully. Students can open it in a new tab.");
+      showToast(form.status === "published" ? "Mock published" : "Changes saved");
       resetForm();
       await load();
     } catch (error) {

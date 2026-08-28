@@ -15,7 +15,8 @@ const sections = [
   { title: "Sectional Mocks", desc: "Upload, edit, publish or delete VARC, DILR and QA HTML mocks.", href: "/admin/mocks?type=sectional" },
   { title: "Full Mocks", desc: "Upload, edit, publish or delete your full CAT HTML mocks.", href: "/admin/mocks?type=full" },
   { title: "Materials", desc: "Upload materials by CAT section and topic.", href: "/admin/materials" },
-  { title: "Students", desc: "Student accounts and performance are stored in Firebase.", href: "/performance" },
+  { title: "Performance / Analytics", desc: "Review activity, test metrics, and ranked student results for every mock.", href: "/admin/analytics" },
+  { title: "Notifications", desc: "Send a notification to every signed-in student.", href: "/admin/notifications" },
 ];
 
 export default function AdminDashboard() {

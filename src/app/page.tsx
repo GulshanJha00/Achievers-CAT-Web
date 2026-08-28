@@ -99,6 +99,7 @@ type LeaderboardState = {
   entries: LeaderboardEntry[];
   total: number;
 };
+type StreakEntry = { userId: string; displayName?: string; email?: string; currentStreak: number };
 
 const todayIST = () =>
   new Intl.DateTimeFormat("en-CA", {
@@ -126,7 +127,7 @@ const sectionInfo: Record<
   },
 };
 
-function getDisplayName(entry: LeaderboardEntry) {
+function getDisplayName(entry: Pick<LeaderboardEntry, "displayName" | "email">) {
   if (entry.displayName?.trim()) {
     return entry.displayName.trim();
   }
@@ -164,6 +165,7 @@ export default function Home() {
   });
 
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [streakLeaders, setStreakLeaders] = useState<StreakEntry[]>([]);
 
   const date = useMemo(() => todayIST(), []);
 
@@ -345,7 +347,7 @@ export default function Home() {
             setLeaderboards((previous) => ({
               ...previous,
               [section]: {
-                entries: allEntries.slice(0, 10),
+                entries: allEntries.slice(0, 5),
                 total: allEntries.length,
               },
             }));
@@ -368,6 +370,12 @@ export default function Home() {
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
   }, [date]);
+
+  useEffect(() => onSnapshot(collection(db, "user_streaks"), (snapshot) => {
+    const entries = snapshot.docs.map((item) => ({ userId: String(item.data().userId || item.id), displayName: String(item.data().displayName || ""), email: String(item.data().email || ""), currentStreak: Number(item.data().currentStreak || 0) }));
+    entries.sort((a, b) => b.currentStreak - a.currentStreak || getDisplayName(a).localeCompare(getDisplayName(b)));
+    setStreakLeaders(entries.slice(0, 5));
+  }, (error) => console.error("Could not load streak leaderboard:", error)), []);
 
   /*
    * --------------------------------------------------
@@ -448,6 +456,7 @@ export default function Home() {
               >
                 Attempt a Mock
               </Link>
+              <div className="mt-4 border-t border-border pt-4"><div className="flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-wide text-brand-dark">Top 5 streaks</p><Flame size={14} className="text-flame" /></div>{streakLeaders.length ? <div className="mt-2 space-y-1.5">{streakLeaders.map((entry, index) => <div key={entry.userId} className="flex items-center justify-between text-xs"><span className="truncate text-muted">#{index + 1} {getDisplayName(entry)}</span><span className="font-bold text-brand-darker">{entry.currentStreak} days</span></div>)}</div> : <p className="mt-2 text-xs text-muted">Start today to lead the streak board.</p>}</div>
             </div>
           </div>
 
@@ -614,7 +623,7 @@ export default function Home() {
 
               <Link
                 href="/daily"
-                className="mt-5 flex w-full items-center justify-center rounded-full bg-foreground px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-foreground/90"
+                className="mt-5 flex w-full items-center justify-center rounded-full bg-brand px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-brand-dark"
               >
                 {completedCount === 3
                   ? "View Today's Practice"
@@ -671,7 +680,7 @@ export default function Home() {
                         />
 
                         <h3 className="font-display text-[16px] font-bold">
-                          Top 10/{leaderboard.total}
+                          Top 5/{leaderboard.total}
                         </h3>
                       </div>
 
@@ -832,7 +841,7 @@ export default function Home() {
           CTA
       -------------------------------------------------- */}
 
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <section className={`mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 ${user ? "hidden" : ""}`}>
         <div className="flex flex-col items-start justify-between gap-6 rounded-2xl bg-foreground px-6 py-10 sm:flex-row sm:items-center sm:px-10">
           <div>
             <p className="font-display text-[22px] font-bold text-white">

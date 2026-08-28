@@ -30,6 +30,13 @@ export default function DailyPage() {
   useEffect(() => onAuthStateChanged(auth, (u) => { setUser(u); setLoading(false); }), []);
 
   useEffect(() => {
+    if (user) return;
+    getDoc(doc(db, "daily_packages", date))
+      .then((packageSnap) => setData(packageSnap.exists() ? packageSnap.data() as DailyPackage : null))
+      .catch(console.error);
+  }, [date, user]);
+
+  useEffect(() => {
     if (!user) return;
     (async () => {
       const packageSnap = await getDoc(doc(db, "daily_packages", date));
@@ -63,7 +70,7 @@ export default function DailyPage() {
   }, [attempts]);
 
   if (loading) return <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="animate-spin text-brand"/></div>;
-  if (!user) return <div className="mx-auto max-w-xl px-4 py-20 text-center"><h1 className="font-display text-2xl font-bold">Sign in to access Daily Practice</h1><Link href="/login" className="mt-6 inline-flex rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white">Continue with Google</Link></div>;
+  if (!user && !data) return <div className="mx-auto max-w-xl px-4 py-20 text-center"><h1 className="font-display text-2xl font-bold">Loading today&apos;s Daily Practice</h1></div>;
 
   const items = [
     { key: "quant" as Section, title: "Quantitative Aptitude", desc: `${data?.quant?.length || 5} questions` },
@@ -80,7 +87,7 @@ export default function DailyPage() {
           <div className="flex items-center justify-between gap-4"><div className="flex items-center gap-4"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-tint text-brand-darker"><Circle size={20}/></div><div><h2 className="font-display text-lg font-bold">{item.title}</h2><p className="mt-1 text-sm text-muted">{item.desc} · <span className="font-semibold text-brand-darker">15 minutes</span></p></div></div><div className="hidden items-center gap-1.5 text-xs font-semibold text-muted sm:flex"><Users size={14}/> {stats[item.key]} attempted</div></div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <div className="flex items-center gap-3">{attempt ? <><CheckCircle2 size={18} className="text-brand"/><span className="text-sm font-semibold text-brand-darker">Completed · Score {attempt.score}</span></> : <span className="text-xs text-muted"><span className="font-semibold text-brand-darker">{stats[item.key]}</span> people attempted today</span>}</div>
-            <Link href={`/daily/question?section=${item.key}`} className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-dark">{attempt ? "View Result" : "Start Daily Test"}<ArrowRight size={16}/></Link>
+            <Link href={user ? `/daily/question?section=${item.key}` : `/login?returnTo=${encodeURIComponent(`/daily/question?section=${item.key}`)}`} className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-dark">{attempt ? "View Result" : user ? "Start Daily Test" : "Log in to attempt"}<ArrowRight size={16}/></Link>
           </div>
         </div>;
       })}
