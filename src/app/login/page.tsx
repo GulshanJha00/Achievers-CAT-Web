@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithGoogle } from "@/lib/firebase/auth";
 import Logo from "@/components/Logo";
@@ -8,6 +8,10 @@ import { Loader2 } from "lucide-react";
 import { showToast } from "@/components/Toast";
 
 export default function LoginPage() {
+  return <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><Loader2 className="animate-spin text-brand" /></div>}><LoginForm /></Suspense>;
+}
+
+function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();

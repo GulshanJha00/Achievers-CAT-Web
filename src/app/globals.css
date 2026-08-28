@@ -17,8 +17,8 @@
   --flame: #f97316;
   --danger: #e0405a;
 
-  --font-display: var(--font-sora);
-  --font-body: var(--font-inter);
+  --font-display: "Aptos Display", "Segoe UI", Arial, sans-serif;
+  --font-body: "Aptos", "Segoe UI", Arial, sans-serif;
 }
 
 @theme inline {
