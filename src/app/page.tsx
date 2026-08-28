@@ -22,11 +22,14 @@ import {
 import {
   collection,
   doc,
+  getDocs,
   onSnapshot,
+  writeBatch,
 } from "firebase/firestore";
 
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase/client";
+import { getProfile } from "@/lib/firebase/profile";
 
 const features = [
   {
@@ -218,6 +221,37 @@ export default function Home() {
         setStreak(0);
       }
     );
+  }, [user]);
+
+  // Older streak documents predate the public display-name fields. When an
+  // admin visits Home, safely backfill those labels from the private profiles
+  // collection; students never receive access to profile records themselves.
+  useEffect(() => {
+    if (!user) return;
+    void (async () => {
+      try {
+        const currentProfile = await getProfile(user.uid);
+        if (currentProfile?.role !== "admin") return;
+        const [streakSnapshot, profileSnapshot] = await Promise.all([
+          getDocs(collection(db, "user_streaks")),
+          getDocs(collection(db, "profiles")),
+        ]);
+        const profiles = new Map(profileSnapshot.docs.map((profile) => [profile.id, profile.data()]));
+        const updates = streakSnapshot.docs.flatMap((streak) => {
+          const data = streak.data();
+          const profile = profiles.get(String(data.userId || streak.id));
+          if (!profile || data.displayName) return [];
+          return [{ id: streak.id, displayName: String(profile.name || profile.displayName || "Student"), email: String(profile.email || "") }];
+        });
+        for (let start = 0; start < updates.length; start += 450) {
+          const batch = writeBatch(db);
+          updates.slice(start, start + 450).forEach((update) => batch.set(doc(db, "user_streaks", update.id), { displayName: update.displayName, email: update.email }, { merge: true }));
+          await batch.commit();
+        }
+      } catch (error) {
+        console.error("Could not backfill streak leaderboard names:", error);
+      }
+    })();
   }, [user]);
 
   /*
