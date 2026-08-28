@@ -23,7 +23,7 @@ export default function FullMocksPage() {
         const value = item.data();
         if (value.status !== "submitted" || value.type !== "full" || !value.mockId) return;
         const submittedAt = value.submittedAt?.toDate?.();
-        next[String(value.mockId)] = { score: Number(value.score || 0), total: Number(value.total || 0), attemptedOn: submittedAt ? submittedAt.toLocaleDateString() : "just now" };
+        next[String(value.mockId)] = { score: Number(value.score || 0), total: Number(value.total || 0), percentile: typeof value.percentile === "number" ? value.percentile : undefined, attemptedOn: submittedAt ? submittedAt.toLocaleDateString() : "just now" };
       });
       setAttempts(next);
     });

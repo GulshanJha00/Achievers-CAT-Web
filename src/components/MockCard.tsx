@@ -51,7 +51,7 @@ export default function MockCard({ mock }: { mock: MockSummary }) {
         {mock.attempted && (
           <div className="mt-3 inline-flex items-center rounded-xl border border-brand/20 bg-brand-tint px-3 py-2 text-[13px] font-semibold text-brand-darker">
             Attempted {mock.attempted.attemptedOn} · Score {mock.attempted.score}{typeof mock.attempted.total === "number" ? `/${mock.attempted.total * 3}` : ""}
-            {mock.attempted.percentile ? ` · ${mock.attempted.percentile} %ile` : ""}
+            {typeof mock.attempted.percentile === "number" ? ` · ${mock.attempted.percentile.toFixed(2)} %ile` : ""}
           </div>
         )}
       </div>

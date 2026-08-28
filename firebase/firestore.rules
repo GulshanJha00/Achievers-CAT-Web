@@ -151,7 +151,7 @@ service cloud.firestore {
     }
 
     match /daily_reads/{readId} {
-      allow read: if signedIn() && resource.data.published == true || isAdmin();
+      allow read: if (signedIn() && resource.data.published == true) || isAdmin();
       allow create, update, delete: if isAdmin();
     }
 
@@ -466,6 +466,16 @@ service cloud.firestore {
 
       allow delete:
         if isAdmin();
+    }
+
+    // Public, answer-free rows used only for ranking. Answers remain private
+    // in /attempts, so a percentile never exposes a student's responses.
+    match /mock_rankings/{rankingId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && rankingId == request.auth.uid + '_' + request.resource.data.mockId;
+      allow delete: if isAdmin();
     }
 
 

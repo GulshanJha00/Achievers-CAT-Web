@@ -26,9 +26,7 @@ import {
   collection,
   doc,
   getDocs,
-  limit,
   onSnapshot,
-  orderBy,
   query,
   where,
   writeBatch,
@@ -110,7 +108,7 @@ type LeaderboardState = {
   total: number;
 };
 type StreakEntry = { userId: string; displayName?: string; email?: string; currentStreak: number };
-type DailyRead = { id: string; title: string; url: string; kind?: "pdf" | "link" };
+type DailyRead = { id: string; title: string; url: string; kind?: "pdf" | "link"; createdAt?: { toMillis?: () => number } };
 
 const todayIST = () =>
   new Intl.DateTimeFormat("en-CA", {
@@ -246,8 +244,11 @@ export default function Home() {
   useEffect(() => {
     if (!user) return;
     return onSnapshot(
-      query(collection(db, "daily_reads"), where("published", "==", true), orderBy("createdAt", "desc"), limit(6)),
-      (snapshot) => setDailyReads(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as DailyRead)),
+      query(collection(db, "daily_reads"), where("published", "==", true)),
+      (snapshot) => setDailyReads(snapshot.docs
+        .map((item) => ({ id: item.id, ...item.data() }) as DailyRead)
+        .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))
+        .slice(0, 6)),
       (error) => console.error("Could not load Daily Reads:", error)
     );
   }, [user]);
@@ -498,7 +499,7 @@ export default function Home() {
       -------------------------------------------------- */}
 
       <section className="relative overflow-hidden border-b border-border">
-        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:py-20 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-8 sm:px-6 md:py-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:px-8">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-brand-tint px-3 py-1 text-[12.5px] font-medium text-brand-darker">
               <Flame size={13} className="text-flame" />

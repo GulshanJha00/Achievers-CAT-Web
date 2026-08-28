@@ -6,9 +6,10 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { Loader2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { auth, db } from "@/lib/firebase/client";
+import { calculatePercentiles, type RankingAttempt } from "@/lib/mockPercentile";
 
-type Mock = { id: string; name: string; type: "full" | "sectional"; section?: string; questions: number; durationMins: number; status: "published" | "draft" };
-type SavedAttempt = { status: "in_progress" | "submitted"; answers?: Record<string, string>; score?: number; total?: number; correct?: number; wrong?: number };
+type Mock = { id: string; name: string; type: "full" | "sectional"; section?: string; questions: number; durationMins: number; difficulty?: string; status: "published" | "draft" };
+type SavedAttempt = { status: "in_progress" | "submitted"; answers?: Record<string, string>; score?: number; total?: number; correct?: number; wrong?: number; percentile?: number };
 type ResultMessage = { source: "achievers-mock"; type: "ready" | "started" | "submitted"; score?: number; total?: number; correct?: number; wrong?: number; answers?: Record<string, string>; secondsLeft?: number };
 
 function addAchieversBridge(html: string) {
@@ -115,8 +116,16 @@ export default function MockViewPage({ params }: { params: Promise<{ mockId: str
           await setDoc(attemptDocument, { userId: user.uid, mockId, type: mock.type, section: mock.section || null, status: "in_progress", startedAt: serverTimestamp() });
         }
         if (data.type === "submitted" && attempt?.status !== "submitted") {
-          await updateDoc(attemptDocument, { status: "submitted", score: data.score || 0, total: data.total || 0, correct: data.correct || 0, wrong: data.wrong || 0, answers: data.answers || {}, timeTakenSeconds: Math.max(0, mock.durationMins * 60 - Number(data.secondsLeft || 0)), submittedAt: serverTimestamp() });
-          const submitted: SavedAttempt = { status: "submitted", score: data.score, total: data.total, correct: data.correct, wrong: data.wrong, answers: data.answers };
+          const score = Number(data.score || 0), correct = Number(data.correct || 0), wrong = Number(data.wrong || 0), total = Number(data.total || 0);
+          const rankingSnapshot = await getDocs(query(collection(db, "mock_rankings"), where("mockId", "==", mockId)));
+          const rankings = rankingSnapshot.docs.map((item) => item.data() as RankingAttempt).filter((item) => item.userId !== user.uid);
+          rankings.push({ userId: user.uid, score, correct, wrong });
+          const percentile = calculatePercentiles(rankings, total, mock.difficulty).get(user.uid) || 0;
+          await Promise.all([
+            setDoc(doc(db, "mock_rankings", `${user.uid}_${mockId}`), { userId: user.uid, mockId, score, correct, wrong, updatedAt: serverTimestamp() }),
+            updateDoc(attemptDocument, { status: "submitted", score, total, correct, wrong, percentile, answers: data.answers || {}, timeTakenSeconds: Math.max(0, mock.durationMins * 60 - Number(data.secondsLeft || 0)), submittedAt: serverTimestamp() }),
+          ]);
+          const submitted: SavedAttempt = { status: "submitted", score, total, correct, wrong, percentile, answers: data.answers };
           attemptRef.current = submitted;
           setAttempt(submitted);
         }
@@ -164,5 +173,5 @@ export default function MockViewPage({ params }: { params: Promise<{ mockId: str
   if (!user) return <div className="mx-auto max-w-xl px-4 py-20 text-center"><h1 className="font-display text-2xl font-bold">Sign in to open this mock</h1><Link href={`/login?returnTo=${encodeURIComponent(`/mock-view/${mockId || ""}`)}`} className="mt-6 inline-flex rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white">Continue with Google</Link></div>;
   if (status === "error") return <div className="mx-auto max-w-xl px-4 py-20 text-center"><h1 className="font-display text-2xl font-bold">Could not open mock</h1><p className="mt-2 text-sm text-danger">{message}</p></div>;
   if (!html) return <div className="flex min-h-[70vh] items-center justify-center gap-3 text-sm text-muted"><Loader2 className="animate-spin text-brand" /> Opening your mock…</div>;
-  return <div className="min-h-screen bg-surface-muted"><div className="flex items-center justify-end border-b border-border bg-white px-4 py-2"><div className="flex items-center gap-2 text-sm font-medium text-foreground">{user.photoURL ? <img src={user.photoURL} alt="" className="h-8 w-8 rounded-full object-cover" /> : <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-tint text-brand-darker"><UserRound size={16} /></span>}<span>{user.displayName || "Student"}</span></div></div><iframe ref={frameRef} srcDoc={html} onLoad={restoreAnalysis} sandbox="allow-scripts allow-forms" title={mock?.name || "Mock"} className="min-h-[calc(100vh-49px)] w-full border-0" /></div>;
+  return <div className="min-h-screen bg-surface-muted"><div className="flex items-center justify-end border-b border-border bg-white px-4 py-2"><div className="flex items-center gap-2 text-sm font-medium text-foreground">{attempt?.status === "submitted" && <span className="rounded-full bg-brand-tint px-3 py-1 text-xs font-bold text-brand-darker">{Number(attempt.percentile || 0).toFixed(2)} %ile</span>}{user.photoURL ? <img src={user.photoURL} alt="" className="h-8 w-8 rounded-full object-cover" /> : <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-tint text-brand-darker"><UserRound size={16} /></span>}<span>{user.displayName || "Student"}</span></div></div><iframe ref={frameRef} srcDoc={html} onLoad={restoreAnalysis} sandbox="allow-scripts allow-forms" title={mock?.name || "Mock"} className="min-h-[calc(100vh-49px)] w-full border-0" /></div>;
 }
