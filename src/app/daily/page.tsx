@@ -25,9 +25,10 @@ export default function DailyPage() {
   const [stats, setStats] = useState<Stats>({ quant: 0, varc: 0, dilr: 0 });
   const [attempts, setAttempts] = useState<Attempts>({ quant: null, varc: null, dilr: null });
   const [loading, setLoading] = useState(true);
-  const date = todayIST();
+  const [date, setDate] = useState(todayIST());
 
   useEffect(() => onAuthStateChanged(auth, (u) => { setUser(u); setLoading(false); }), []);
+  useEffect(() => { const timer = window.setInterval(() => setDate(todayIST()), 60_000); return () => window.clearInterval(timer); }, []);
 
   useEffect(() => {
     if (user) return;

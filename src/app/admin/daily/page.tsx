@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import AdminGuard from "@/components/AdminGuard";
@@ -439,6 +439,9 @@ function DailyEditor() {
   const [bulkImportText, setBulkImportText] =
     useState("");
 
+  const autoSaveReady = useRef(false);
+  const lastSavedSnapshot = useRef("");
+
 
   // --------------------------------------------------
   // BULK IMPORT
@@ -537,6 +540,8 @@ function DailyEditor() {
   useEffect(() => {
 
     let alive = true;
+
+    autoSaveReady.current = false;
 
     setLoading(true);
 
@@ -684,7 +689,7 @@ function DailyEditor() {
   // SAVE
   // --------------------------------------------------
 
-  async function save() {
+  async function save(silent = false) {
 
     setSaving(true);
     setMessage("");
@@ -830,6 +835,8 @@ function DailyEditor() {
         }
       );
 
+      lastSavedSnapshot.current = JSON.stringify(data);
+
 
       // ----------------------------------------------
       // UPDATE LOCAL STATE
@@ -864,10 +871,10 @@ function DailyEditor() {
       );
 
 
-      setMessage(
-        `Daily Practice package saved successfully. ${data.varc.type} contains ${requiredVarc} questions.`
-      );
-      showToast(data.published ? "Daily practice published" : "Changes saved");
+      if (!silent) {
+        setMessage(`Daily Practice package saved successfully. ${data.varc.type} contains ${requiredVarc} questions.`);
+        showToast(data.published ? "Daily practice published" : "Changes saved");
+      }
 
     } catch (error) {
 
@@ -882,6 +889,22 @@ function DailyEditor() {
       setSaving(false);
     }
   }
+
+  // Draft every text edit and completed image upload after a short pause. The
+  // selected date remains the document ID, so tomorrow's package is safely
+  // prepared in advance and becomes today's package at IST midnight.
+  useEffect(() => {
+    if (loading) return;
+    const snapshot = JSON.stringify(data);
+    if (!autoSaveReady.current) {
+      autoSaveReady.current = true;
+      lastSavedSnapshot.current = snapshot;
+      return;
+    }
+    if (snapshot === lastSavedSnapshot.current) return;
+    const timer = window.setTimeout(() => { void save(true); }, 1_200);
+    return () => window.clearTimeout(timer);
+  }, [data, date, loading]);
 
 
   // --------------------------------------------------
@@ -1364,7 +1387,7 @@ function DailyEditor() {
               saving ||
               loading
             }
-            onClick={save}
+            onClick={() => { void save(); }}
             className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-2.5 text-[14px] font-semibold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50"
           >
 

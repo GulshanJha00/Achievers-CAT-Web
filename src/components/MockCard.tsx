@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Clock, ListOrdered, ArrowUpRight } from "lucide-react";
+import { estimatePercentile } from "@/lib/mockPercentile";
 
 export type MockSummary = {
   id: string;
@@ -13,6 +14,8 @@ export type MockSummary = {
     score: number;
     total?: number;
     percentile?: number;
+    correct?: number;
+    wrong?: number;
     attemptedOn: string;
   };
 };
@@ -50,8 +53,7 @@ export default function MockCard({ mock }: { mock: MockSummary }) {
         </div>
         {mock.attempted && (
           <div className="mt-3 inline-flex items-center rounded-xl border border-brand/20 bg-brand-tint px-3 py-2 text-[13px] font-semibold text-brand-darker">
-            Attempted {mock.attempted.attemptedOn} · Score {mock.attempted.score}{typeof mock.attempted.total === "number" ? `/${mock.attempted.total * 3}` : ""}
-            {typeof mock.attempted.percentile === "number" ? ` · ${mock.attempted.percentile.toFixed(2)} %ile` : ""}
+            Attempted {mock.attempted.attemptedOn} · Score {mock.attempted.score}{typeof mock.attempted.total === "number" ? `/${mock.attempted.total * 3}` : ""} · {typeof mock.attempted.percentile === "number" && mock.attempted.percentile > 0 ? mock.attempted.percentile.toFixed(2) : estimatePercentile(mock.attempted.score, mock.attempted.total || mock.questions, mock.difficulty).toFixed(2)} %ile
           </div>
         )}
       </div>

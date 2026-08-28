@@ -13,6 +13,7 @@ import {
   FolderOpen,
   LogIn,
   Target,
+  CalendarDays,
   Download,
   ExternalLink,
   FileText,
@@ -108,7 +109,7 @@ type LeaderboardState = {
   total: number;
 };
 type StreakEntry = { userId: string; displayName?: string; email?: string; currentStreak: number };
-type DailyRead = { id: string; title: string; url: string; kind?: "pdf" | "link"; createdAt?: { toMillis?: () => number } };
+type DailyRead = { id: string; title: string; url: string; kind?: "pdf" | "link"; publishedFor?: string; createdAt?: { toMillis?: () => number; toDate?: () => Date } };
 
 const todayIST = () =>
   new Intl.DateTimeFormat("en-CA", {
@@ -185,8 +186,9 @@ export default function Home() {
   const [streakLeaders, setStreakLeaders] = useState<StreakEntry[]>([]);
   const [publicProfileNames, setPublicProfileNames] = useState<Record<string, string>>({});
   const [dailyReads, setDailyReads] = useState<DailyRead[]>([]);
+  const [today, setToday] = useState(todayIST());
 
-  const date = useMemo(() => todayIST(), []);
+  const date = today;
   const catDaysRemaining = useMemo(() => daysUntilCat(), []);
   const catProgress = useMemo(() => Math.min(100, Math.max(0, Math.round(((365 - catDaysRemaining) / 365) * 100))), [catDaysRemaining]);
 
@@ -203,6 +205,11 @@ export default function Home() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setToday(todayIST()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   /*
@@ -247,11 +254,12 @@ export default function Home() {
       query(collection(db, "daily_reads"), where("published", "==", true)),
       (snapshot) => setDailyReads(snapshot.docs
         .map((item) => ({ id: item.id, ...item.data() }) as DailyRead)
+        .filter((read) => read.publishedFor ? read.publishedFor === today : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(read.createdAt?.toDate?.() || new Date(0)) === today)
         .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))
         .slice(0, 6)),
       (error) => console.error("Could not load Daily Reads:", error)
     );
-  }, [user]);
+  }, [user, today]);
 
   // Older streak documents predate the public display-name fields. When an
   // admin visits Home, safely backfill those labels from the private profiles
@@ -490,7 +498,7 @@ export default function Home() {
       </div>
       <div className="border-b border-brand/20 bg-gradient-to-r from-brand-tint via-white to-brand-tint px-4 py-4">
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-2 text-center sm:flex-row sm:text-left">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand text-white shadow-lg shadow-brand/25"><Target size={21} /></span>
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand text-white shadow-lg shadow-brand/25"><CalendarDays size={21} /></span>
           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline justify-center gap-x-2 sm:justify-between"><p className="font-display text-lg font-bold text-foreground">CAT 2026 Countdown</p><p className="font-display text-xl font-bold text-brand-darker"><span className="text-2xl">{catDaysRemaining}</span> days left</p></div><p className="mt-0.5 text-xs font-medium text-muted">CAT exam day · 29 November — make today&apos;s practice count.</p><div className="mt-2 h-2.5 overflow-hidden rounded-full bg-brand/10"><div className="h-full rounded-full bg-gradient-to-r from-brand to-emerald-400 transition-all" style={{ width: `${catProgress}%` }} /></div></div>
         </div>
       </div>

@@ -1,6 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { collection, getCountFromServer } from "firebase/firestore";
 import AdminGuard from "@/components/AdminGuard";
 import { Users, FileStack, HelpCircle, FolderOpen, ClipboardList } from "lucide-react";
+import { db } from "@/lib/firebase/client";
 
 const stats = [
   { label: "Students", value: "—", icon: Users },
@@ -21,6 +26,13 @@ const sections = [
 ];
 
 export default function AdminDashboard() {
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const sources = [["Students", "profiles"], ["Mocks", "mocks"], ["Questions", "questions"], ["Materials", "materials"], ["Attempts", "attempts"]] as const;
+    Promise.all(sources.map(async ([label, source]) => [label, (await getCountFromServer(collection(db, source))).data().count] as const))
+      .then((entries) => setCounts(Object.fromEntries(entries)))
+      .catch(console.error);
+  }, []);
   return (
     <AdminGuard>
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
@@ -38,7 +50,7 @@ export default function AdminDashboard() {
           <div key={s.label} className="rounded-2xl border border-border bg-white p-4">
             <s.icon size={16} className="text-brand-dark" />
             <p className="mt-2 font-display text-[19px] font-bold text-foreground">
-              {s.value}
+              {counts[s.label] ?? s.value}
             </p>
             <p className="text-[12px] text-muted">{s.label}</p>
           </div>

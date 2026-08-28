@@ -34,6 +34,8 @@ export default function SectionalTabs() {
         next[String(value.mockId)] = {
           score: Number(value.score || 0),
           total: Number(value.total || 0),
+          correct: Number(value.correct || 0),
+          wrong: Number(value.wrong || 0),
           percentile: typeof value.percentile === "number" ? value.percentile : undefined,
           attemptedOn: submittedAt ? submittedAt.toLocaleDateString() : "just now",
         };

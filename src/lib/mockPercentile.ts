@@ -16,6 +16,10 @@ function benchmarkPercentile(score: number, total: number, difficulty: Difficult
   return 99.99;
 }
 
+export function estimatePercentile(score: number, total: number, difficulty: Difficulty) {
+  return Math.max(0, Math.min(99.99, Math.floor(benchmarkPercentile(score, total, difficulty) * 100) / 100));
+}
+
 /** Score ranks first, accuracy breaks equal marks, and user ID breaks any final tie. */
 export function calculatePercentiles(attempts: RankingAttempt[], total: number, difficulty: Difficulty) {
   const sorted = [...attempts].sort((a, b) => b.score - a.score || (b.correct / Math.max(1, b.correct + b.wrong)) - (a.correct / Math.max(1, a.correct + a.wrong)) || a.userId.localeCompare(b.userId));
